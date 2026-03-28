@@ -86,6 +86,8 @@ export async function processQueue() {
             ToAddresses: item.envelope_to.split(','),
           },
           ConfigurationSetName: item.configuration_set || undefined,
+          // @ts-ignore - TenantName is a specific parameter for routing through tenant context
+          TenantName: item.tenant_tag,
           EmailTags: [
             {
               Name: 'TenantName',
