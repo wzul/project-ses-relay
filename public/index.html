@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SES Relay Management</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen p-8">
+    <!-- Login Overlay -->
+    <div id="loginOverlay" class="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white p-8 rounded-lg shadow-xl max-w-md w-full">
+            <h2 class="text-2xl font-bold mb-6 text-gray-800">Admin Login</h2>
+            <p class="text-gray-600 mb-4">Please enter your Admin API Key to access the dashboard.</p>
+            <input type="password" id="loginApiKey" placeholder="Admin API Key" class="w-full p-3 border rounded mb-4 focus:ring-2 focus:ring-blue-500 outline-none">
+            <button onclick="login()" class="w-full bg-blue-600 text-white py-3 rounded font-semibold hover:bg-blue-700 transition">Login</button>
+            <p id="loginError" class="text-red-500 mt-4 text-sm hidden">Invalid API Key. Please try again.</p>
+        </div>
+    </div>
+
+    <div id="dashboard" class="max-w-4xl mx-auto hidden">
+        <div class="flex justify-between items-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-800">SES Relay Management</h1>
+            <button onclick="logout()" class="text-sm text-red-600 hover:underline">Logout</button>
+        </div>
+
+        <!-- Create Tenant Section -->
+        <div class="bg-white p-6 rounded-lg shadow-md mb-8">
+            <h2 class="text-xl font-semibold mb-4">Create New Tenant</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <input type="text" id="tenantName" placeholder="Tenant Name (e.g. Acme Corp)" class="p-2 border rounded">
+                <input type="text" id="tenantTag" placeholder="Tenant Tag (e.g. acme_123)" class="p-2 border rounded">
+            </div>
+            <button onclick="createTenant()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Create Tenant</button>
+            <div id="createResult" class="mt-4 hidden p-4 bg-gray-50 rounded border"></div>
+        </div>
+
+        <!-- Tenant List Section -->
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold">Existing Tenants</h2>
+                <button onclick="loadTenants()" class="text-blue-600 hover:underline">Refresh List</button>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="border-b">
+                            <th class="py-2 px-4">Name</th>
+                            <th class="py-2 px-4">SMTP Username</th>
+                            <th class="py-2 px-4">SMTP Password</th>
+                            <th class="py-2 px-4">Tag</th>
+                            <th class="py-2 px-4">Created</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tenantList">
+                        <!-- Tenants will be loaded here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_KEY_STORAGE_KEY = 'ses_relay_api_key';
+
+        async function checkAuth() {
+            const apiKey = localStorage.getItem(API_KEY_STORAGE_KEY);
+            if (!apiKey) {
+                showLogin();
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/verify', {
+                    headers: { 'X-API-Key': apiKey }
+                });
+                if (response.ok) {
+                    showDashboard();
+                    loadTenants();
+                } else {
+                    showLogin();
+                }
+            } catch (err) {
+                console.error('Auth check failed:', err);
+                showLogin();
+            }
+        }
+
+        function showLogin() {
+            document.getElementById('loginOverlay').classList.remove('hidden');
+            document.getElementById('dashboard').classList.add('hidden');
+        }
+
+        function showDashboard() {
+            document.getElementById('loginOverlay').classList.add('hidden');
+            document.getElementById('dashboard').classList.remove('hidden');
+        }
+
+        async function login() {
+            const key = document.getElementById('loginApiKey').value;
+            if (!key) return;
+
+            try {
+                const response = await fetch('/api/verify', {
+                    headers: { 'X-API-Key': key }
+                });
+                if (response.ok) {
+                    localStorage.setItem(API_KEY_STORAGE_KEY, key);
+                    showDashboard();
+                    loadTenants();
+                } else {
+                    document.getElementById('loginError').classList.remove('hidden');
+                }
+            } catch (err) {
+                alert('Connection error. Please check if the server is running.');
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem(API_KEY_STORAGE_KEY);
+            showLogin();
+        }
+
+        async function createTenant() {
+            const name = document.getElementById('tenantName').value;
+            const tenant_tag = document.getElementById('tenantTag').value;
+            const apiKey = localStorage.getItem(API_KEY_STORAGE_KEY);
+
+            if (!name || !tenant_tag) return alert('Please fill all fields');
+            if (!apiKey) return showLogin();
+
+            try {
+                const response = await fetch('/api/tenants', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Key': apiKey
+                    },
+                    body: JSON.stringify({ name, tenant_tag })
+                });
+
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Failed to create tenant');
+
+                const resultDiv = document.getElementById('createResult');
+                resultDiv.innerHTML = `
+                    <p class="font-bold text-green-600">Tenant Created Successfully!</p>
+                    <p><strong>SMTP Username:</strong> ${data.smtp_username}</p>
+                    <p><strong>SMTP Password:</strong> ${data.smtp_password}</p>
+                `;
+                resultDiv.classList.remove('hidden');
+                loadTenants();
+            } catch (err) {
+                alert(err.message);
+            }
+        }
+
+        async function loadTenants() {
+            const apiKey = localStorage.getItem(API_KEY_STORAGE_KEY);
+            if (!apiKey) return;
+
+            try {
+                const response = await fetch('/api/tenants', {
+                    headers: { 'X-API-Key': apiKey }
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Failed to load tenants');
+
+                const tbody = document.getElementById('tenantList');
+                tbody.innerHTML = data.map(t => `
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="py-2 px-4">${t.name}</td>
+                        <td class="py-2 px-4 font-mono text-sm">${t.smtp_username}</td>
+                        <td class="py-2 px-4 font-mono text-sm">${t.smtp_password}</td>
+                        <td class="py-2 px-4">${t.tenant_tag}</td>
+                        <td class="py-2 px-4 text-sm text-gray-500">${new Date(t.created_at).toLocaleDateString()}</td>
+                    </tr>
+                `).join('');
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        // Initial load
+        checkAuth();
+    </script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+{
+  "name": "ses-relay",
+  "version": "1.0.0",
+  "description": "SMTP Relay with AWS SES Tenant Tagging & Queuing",
+  "main": "dist/index.js",
+  "scripts": {
+    "start": "node dist/index.js",
+    "build": "tsc",
+    "dev": "ts-node src/index.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-sesv2": "^3.0.0",
+    "bcrypt": "^5.1.1",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "mailparser": "^3.7.1",
+    "mysql2": "^3.9.7",
+    "smtp-server": "^3.13.5"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^5.0.2",
+    "@types/express": "^4.17.21",
+    "@types/mailparser": "^3.4.4",
+    "@types/node": "^20.12.7",
+    "@types/smtp-server": "^3.5.10",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.5"
+  }
+}

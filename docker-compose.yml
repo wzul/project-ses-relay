@@ -1,0 +1,40 @@
+services:
+  app:
+    build: .
+    ports:
+      - "${SMTP_PORT:-587}:587"
+      # - "3000:3000" # This will be handled automatically by dokploy
+    environment:
+      - DB_HOST=${DB_HOST:-db}
+      - DB_USER=${DB_USER:-ses_relay}
+      - DB_PASSWORD=${DB_PASSWORD:-ses_relay_pass}
+      - DB_NAME=${DB_NAME:-ses_relay}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - ADMIN_API_KEY=${ADMIN_API_KEY}
+      - SMTP_PORT=587
+      - API_PORT=3000
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: always
+
+  db:
+    image: mariadb:11.8
+    environment:
+      - MARIADB_ROOT_PASSWORD=${DB_ROOT_PASSWORD:-root_pass}
+      - MARIADB_DATABASE=${DB_NAME:-ses_relay}
+      - MARIADB_USER=${DB_USER:-ses_relay}
+      - MARIADB_PASSWORD=${DB_PASSWORD:-ses_relay_pass}
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+
+volumes:
+  db_data:
