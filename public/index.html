@@ -24,6 +24,32 @@
             <button onclick="logout()" class="text-sm text-red-600 hover:underline">Logout</button>
         </div>
 
+        <!-- Edit Tenant Modal -->
+        <div id="editModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50 hidden">
+            <div class="bg-white p-8 rounded-lg shadow-xl max-w-md w-full">
+                <h2 class="text-2xl font-bold mb-6 text-gray-800">Edit Tenant</h2>
+                <input type="hidden" id="editTenantId">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Name</label>
+                        <input type="text" id="editTenantName" class="w-full p-2 border rounded mt-1">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Tenant Tag</label>
+                        <input type="text" id="editTenantTag" class="w-full p-2 border rounded mt-1">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Configuration Set</label>
+                        <input type="text" id="editConfigurationSet" class="w-full p-2 border rounded mt-1">
+                    </div>
+                </div>
+                <div class="flex justify-end gap-4 mt-8">
+                    <button onclick="closeEditModal()" class="px-4 py-2 text-gray-600 hover:underline">Cancel</button>
+                    <button onclick="updateTenant()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Save Changes</button>
+                </div>
+            </div>
+        </div>
+
         <!-- Create Tenant Section -->
         <div class="bg-white p-6 rounded-lg shadow-md mb-8">
             <h2 class="text-xl font-semibold mb-4">Create New Tenant</h2>
@@ -52,6 +78,7 @@
                             <th class="py-2 px-4">Tag</th>
                             <th class="py-2 px-4">Config Set</th>
                             <th class="py-2 px-4">Created</th>
+                            <th class="py-2 px-4">Actions</th>
                         </tr>
                     </thead>
                     <tbody id="tenantList">
@@ -178,10 +205,57 @@
                         <td class="py-2 px-4">${t.tenant_tag}</td>
                         <td class="py-2 px-4 text-sm text-gray-500">${t.configuration_set || '-'}</td>
                         <td class="py-2 px-4 text-sm text-gray-500">${new Date(t.created_at).toLocaleDateString()}</td>
+                        <td class="py-2 px-4">
+                            <button onclick='openEditModal(${JSON.stringify(t)})' class="text-blue-600 hover:underline">Edit</button>
+                        </td>
                     </tr>
                 `).join('');
             } catch (err) {
                 console.error(err);
+            }
+        }
+
+        function openEditModal(tenant) {
+            document.getElementById('editTenantId').value = tenant.id;
+            document.getElementById('editTenantName').value = tenant.name;
+            document.getElementById('editTenantTag').value = tenant.tenant_tag;
+            document.getElementById('editConfigurationSet').value = tenant.configuration_set || '';
+            document.getElementById('editModal').classList.remove('hidden');
+        }
+
+        function closeEditModal() {
+            document.getElementById('editModal').classList.add('hidden');
+        }
+
+        async function updateTenant() {
+            const id = document.getElementById('editTenantId').value;
+            const name = document.getElementById('editTenantName').value;
+            const tenant_tag = document.getElementById('editTenantTag').value;
+            const configuration_set = document.getElementById('editConfigurationSet').value;
+            const apiKey = localStorage.getItem(API_KEY_STORAGE_KEY);
+
+            if (!name || !tenant_tag) return alert('Please fill all fields');
+            if (!apiKey) return showLogin();
+
+            try {
+                const response = await fetch(`/api/tenants/${id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Key': apiKey
+                    },
+                    body: JSON.stringify({ name, tenant_tag, configuration_set })
+                });
+
+                if (!response.ok) {
+                    const data = await response.json();
+                    throw new Error(data.error || 'Failed to update tenant');
+                }
+
+                closeEditModal();
+                loadTenants();
+            } catch (err) {
+                alert(err.message);
             }
         }
 

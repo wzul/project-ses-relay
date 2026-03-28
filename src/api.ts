@@ -66,4 +66,24 @@ router.get('/tenants', authenticateAdmin, async (req, res) => {
   }
 });
 
+router.put('/tenants/:id', authenticateAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { name, tenant_tag, configuration_set } = req.body;
+
+  if (!name || !tenant_tag) {
+    return res.status(400).json({ error: 'Name and tenant_tag are required' });
+  }
+
+  try {
+    await pool.query(
+      'UPDATE tenants SET name = ?, tenant_tag = ?, configuration_set = ? WHERE id = ?',
+      [name, tenant_tag, configuration_set || null, id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Update tenant error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;
