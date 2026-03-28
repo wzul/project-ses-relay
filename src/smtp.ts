@@ -102,5 +102,9 @@ export function createSmtpServer() {
     },
   });
 
+  server.on('error', (err) => {
+    console.error('SMTP Server Error:', err.message);
+  });
+
   return server;
 }
