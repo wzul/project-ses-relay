@@ -46,22 +46,34 @@ export async function processQueue() {
 
         // Ensure To: header exists
         if (!/^To:/im.test(rawEmailStr)) {
-          const firstLineEnd = rawEmail.indexOf('\r\n') + 2;
-          rawEmail = Buffer.concat([
-            rawEmail.subarray(0, firstLineEnd),
-            Buffer.from(`To: ${item.envelope_to}\r\n`),
-            rawEmail.subarray(firstLineEnd)
-          ]);
+          const firstLineEnd = rawEmail.indexOf('\r\n');
+          if (firstLineEnd !== -1) {
+            const insertPos = firstLineEnd + 2;
+            rawEmail = Buffer.concat([
+              rawEmail.subarray(0, insertPos),
+              Buffer.from(`To: ${item.envelope_to}\r\n`),
+              rawEmail.subarray(insertPos)
+            ]);
+          } else {
+            // Fallback if no CRLF found
+            rawEmail = Buffer.concat([
+              rawEmail,
+              Buffer.from(`\r\nTo: ${item.envelope_to}\r\n`)
+            ]);
+          }
         }
 
         // Ensure From: header exists
         if (!/^From:/im.test(rawEmailStr)) {
-          const firstLineEnd = rawEmail.indexOf('\r\n') + 2;
-          rawEmail = Buffer.concat([
-            rawEmail.subarray(0, firstLineEnd),
-            Buffer.from(`From: ${item.envelope_from}\r\n`),
-            rawEmail.subarray(firstLineEnd)
-          ]);
+          const firstLineEnd = rawEmail.indexOf('\r\n');
+          if (firstLineEnd !== -1) {
+            const insertPos = firstLineEnd + 2;
+            rawEmail = Buffer.concat([
+              rawEmail.subarray(0, insertPos),
+              Buffer.from(`From: ${item.envelope_from}\r\n`),
+              rawEmail.subarray(insertPos)
+            ]);
+          }
         }
 
         const command = new SendEmailCommand({
@@ -82,6 +94,7 @@ export async function processQueue() {
           ],
         });
 
+        console.log(`Sending email ${item.id} for tenant ${item.tenant_tag} using config set: ${item.configuration_set || 'NONE'}`);
         await sesClient.send(command);
 
         await pool.query(
