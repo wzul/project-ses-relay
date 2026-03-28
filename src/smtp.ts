@@ -40,6 +40,7 @@ export function createSmtpServer() {
     secure: false, // STARTTLS will be used if key/cert are provided
     key,
     cert,
+    disabledCommands: disableTls ? ['STARTTLS'] : [],
     authMethods: ['PLAIN', 'LOGIN'],
     onAuth(auth, session, callback) {
       (async () => {

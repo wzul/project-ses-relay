@@ -54,6 +54,15 @@ Connect your SMTP client to `localhost:26` using the credentials provided by the
 #### Troubleshooting
 The relay is configured to use port **26** and has **TLS/SSL disabled** by default for simplicity.
 
+If you are using **PHPMailer**, ensure you have these settings:
+```php
+$mail->Port = 26;
+$mail->SMTPAutoTLS = false;
+$mail->SMTPSecure = false;
+```
+
+If you still get a `handshake failure`, it's because your client is trying to use STARTTLS on a server that has it disabled.
+
 ## Let's Encrypt Integration
 
 To make your SMTP relay verifiable with Let's Encrypt, you need a valid domain name (e.g., `smtp.yourdomain.com`) pointing to your server.
