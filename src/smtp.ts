@@ -26,6 +26,8 @@ export function createSmtpServer() {
         key = fs.readFileSync(keyPath);
         cert = fs.readFileSync(certPath);
         console.log(`Using SMTP certificates from ${keyPath} and ${certPath}`);
+      } else {
+        console.warn(`SMTP certificates not found at ${keyPath} or ${certPath}. Falling back to self-signed if available.`);
       }
     } catch (err) {
       console.error('Failed to load SMTP certificates:', err);

@@ -67,6 +67,32 @@ If you get a `certificate verify failed` error, it's because the relay uses a se
 2.  **Disable TLS in the Relay**: Set the environment variable `SMTP_DISABLE_TLS=true` in Dokploy/Docker Compose. This will make the relay use plain text (not recommended for production unless over a secure network).
 3.  **Provide Real Certificates**: Mount your real certificates into the container and set `SMTP_KEY_PATH` and `SMTP_CERT_PATH`.
 
+## Let's Encrypt Integration
+
+To make your SMTP relay verifiable with Let's Encrypt, you need a valid domain name (e.g., `smtp.yourdomain.com`) pointing to your server.
+
+### Option 1: Manual Certbot (Easiest for standalone)
+1.  Install Certbot on your host machine.
+2.  Generate a certificate:
+    ```bash
+    sudo certbot certonly --standalone -d smtp.yourdomain.com
+    ```
+3.  Update your `docker-compose.yml` to mount the certificates:
+    ```yaml
+    services:
+      app:
+        # ...
+        volumes:
+          - /etc/letsencrypt/live/smtp.yourdomain.com/privkey.pem:/app/certs/server.key:ro
+          - /etc/letsencrypt/live/smtp.yourdomain.com/fullchain.pem:/app/certs/server.crt:ro
+    ```
+4.  Restart the container.
+
+### Option 2: Dokploy / Traefik (Advanced)
+Since Dokploy uses Traefik, you can technically use Traefik to handle TLS termination for port 587. However, this requires advanced Traefik configuration (TCP Routers with TLS). 
+
+The most reliable way for SMTP is to let the application handle STARTTLS directly using the volume mount method described in Option 1.
+
 ## Architecture
 - **Node.js**: Main application logic.
 - **MariaDB**: Stores tenant information and the mail queue.
