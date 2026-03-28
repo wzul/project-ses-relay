@@ -88,12 +88,6 @@ export async function processQueue() {
           ConfigurationSetName: item.configuration_set || undefined,
           // @ts-ignore - TenantName is a specific parameter for routing through tenant context
           TenantName: item.tenant_tag,
-          EmailTags: [
-            {
-              Name: 'TenantName',
-              Value: item.tenant_tag,
-            },
-          ],
         });
 
         console.log(`Sending email ${item.id} for tenant ${item.tenant_tag} using config set: ${item.configuration_set || 'NONE'}`);
