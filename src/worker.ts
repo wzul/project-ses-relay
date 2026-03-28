@@ -35,21 +35,24 @@ export async function processQueue() {
     for (const item of rows) {
       try {
         let rawEmail = item.raw_email;
+        
+        // Add X-SES-TENANT header at the very beginning
+        // We use \r\n to match SMTP standard line endings
+        const customHeader = Buffer.from(`X-SES-TENANT: ${item.tenant_tag}\r\n`);
+        rawEmail = Buffer.concat([customHeader, rawEmail]);
+
         const rawEmailStr = rawEmail.toString('utf-8');
 
         // Check if 'To:' header exists, if not, add it from envelope
         if (!/^To:/im.test(rawEmailStr)) {
+          // Find the end of the first line (our custom header) to insert 'To' after it
+          const firstLineEnd = rawEmail.indexOf('\r\n') + 2;
           rawEmail = Buffer.concat([
+            rawEmail.subarray(0, firstLineEnd),
             Buffer.from(`To: ${item.envelope_to}\r\n`),
-            rawEmail
+            rawEmail.subarray(firstLineEnd)
           ]);
         }
-
-        // Add X-SES-TENANT header
-        rawEmail = Buffer.concat([
-          Buffer.from(`X-SES-TENANT: ${item.tenant_tag}\r\n`),
-          rawEmail
-        ]);
 
         const command = new SendEmailCommand({
           Content: {
