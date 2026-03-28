@@ -88,7 +88,7 @@ export async function processQueue() {
           ConfigurationSetName: item.configuration_set || undefined,
           EmailTags: [
             {
-              Name: 'TenantID',
+              Name: 'TenantName',
               Value: item.tenant_tag,
             },
           ],
