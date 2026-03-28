@@ -26,7 +26,7 @@ router.get('/verify', authenticateAdmin, (req, res) => {
 });
 
 router.post('/tenants', authenticateAdmin, async (req, res) => {
-  const { name, tenant_tag } = req.body;
+  const { name, tenant_tag, configuration_set } = req.body;
 
   if (!name || !tenant_tag) {
     return res.status(400).json({ error: 'Name and tenant_tag are required' });
@@ -38,8 +38,8 @@ router.post('/tenants', authenticateAdmin, async (req, res) => {
     const smtp_password_hash = await bcrypt.hash(smtp_password, 10);
 
     const [result] = await pool.query(
-      'INSERT INTO tenants (name, smtp_username, smtp_password, smtp_password_hash, tenant_tag) VALUES (?, ?, ?, ?, ?)',
-      [name, smtp_username, smtp_password, smtp_password_hash, tenant_tag]
+      'INSERT INTO tenants (name, smtp_username, smtp_password, smtp_password_hash, tenant_tag, configuration_set) VALUES (?, ?, ?, ?, ?, ?)',
+      [name, smtp_username, smtp_password, smtp_password_hash, tenant_tag, configuration_set || null]
     );
 
     res.status(201).json({
@@ -48,6 +48,7 @@ router.post('/tenants', authenticateAdmin, async (req, res) => {
       smtp_username,
       smtp_password,
       tenant_tag,
+      configuration_set,
     });
   } catch (err) {
     console.error('Create tenant error:', err);
@@ -57,7 +58,7 @@ router.post('/tenants', authenticateAdmin, async (req, res) => {
 
 router.get('/tenants', authenticateAdmin, async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT id, name, smtp_username, smtp_password, tenant_tag, created_at FROM tenants');
+    const [rows] = await pool.query('SELECT id, name, smtp_username, smtp_password, tenant_tag, configuration_set, created_at FROM tenants');
     res.json(rows);
   } catch (err) {
     console.error('List tenants error:', err);

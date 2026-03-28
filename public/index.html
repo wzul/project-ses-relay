@@ -27,9 +27,10 @@
         <!-- Create Tenant Section -->
         <div class="bg-white p-6 rounded-lg shadow-md mb-8">
             <h2 class="text-xl font-semibold mb-4">Create New Tenant</h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                 <input type="text" id="tenantName" placeholder="Tenant Name (e.g. Acme Corp)" class="p-2 border rounded">
                 <input type="text" id="tenantTag" placeholder="Tenant Tag (e.g. acme_123)" class="p-2 border rounded">
+                <input type="text" id="configurationSet" placeholder="AWS Configuration Set (Optional)" class="p-2 border rounded">
             </div>
             <button onclick="createTenant()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Create Tenant</button>
             <div id="createResult" class="mt-4 hidden p-4 bg-gray-50 rounded border"></div>
@@ -49,6 +50,7 @@
                             <th class="py-2 px-4">SMTP Username</th>
                             <th class="py-2 px-4">SMTP Password</th>
                             <th class="py-2 px-4">Tag</th>
+                            <th class="py-2 px-4">Config Set</th>
                             <th class="py-2 px-4">Created</th>
                         </tr>
                     </thead>
@@ -124,6 +126,7 @@
         async function createTenant() {
             const name = document.getElementById('tenantName').value;
             const tenant_tag = document.getElementById('tenantTag').value;
+            const configuration_set = document.getElementById('configurationSet').value;
             const apiKey = localStorage.getItem(API_KEY_STORAGE_KEY);
 
             if (!name || !tenant_tag) return alert('Please fill all fields');
@@ -136,7 +139,7 @@
                         'Content-Type': 'application/json',
                         'X-API-Key': apiKey
                     },
-                    body: JSON.stringify({ name, tenant_tag })
+                    body: JSON.stringify({ name, tenant_tag, configuration_set })
                 });
 
                 const data = await response.json();
@@ -173,6 +176,7 @@
                         <td class="py-2 px-4 font-mono text-sm">${t.smtp_username}</td>
                         <td class="py-2 px-4 font-mono text-sm">${t.smtp_password}</td>
                         <td class="py-2 px-4">${t.tenant_tag}</td>
+                        <td class="py-2 px-4 text-sm text-gray-500">${t.configuration_set || '-'}</td>
                         <td class="py-2 px-4 text-sm text-gray-500">${new Date(t.created_at).toLocaleDateString()}</td>
                     </tr>
                 `).join('');

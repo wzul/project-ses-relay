@@ -20,12 +20,13 @@ interface MailQueueItem extends RowDataPacket {
   envelope_from: string;
   raw_email: Buffer;
   tenant_tag: string;
+  configuration_set: string | null;
 }
 
 export async function processQueue() {
   try {
     const [rows] = await pool.query<MailQueueItem[]>(`
-      SELECT mq.*, t.tenant_tag 
+      SELECT mq.*, t.tenant_tag, t.configuration_set 
       FROM mail_queue mq
       JOIN tenants t ON mq.tenant_id = t.id
       WHERE mq.status = 'pending'
@@ -72,6 +73,7 @@ export async function processQueue() {
           Destination: {
             ToAddresses: item.envelope_to.split(','),
           },
+          ConfigurationSetName: item.configuration_set || undefined,
           EmailTags: [
             {
               Name: 'tenant_id',

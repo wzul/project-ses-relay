@@ -71,8 +71,12 @@ export async function initDb() {
     }
     if (!columnNames.includes('smtp_password')) {
       const [tenantCols] = await connection.query<any[]>('SHOW COLUMNS FROM tenants');
-      if (!tenantCols.map((c: any) => c.Field).includes('smtp_password')) {
+      const tenantColNames = tenantCols.map((c: any) => c.Field);
+      if (!tenantColNames.includes('smtp_password')) {
         await connection.query('ALTER TABLE tenants ADD COLUMN smtp_password VARCHAR(255) NOT NULL AFTER smtp_username');
+      }
+      if (!tenantColNames.includes('configuration_set')) {
+        await connection.query('ALTER TABLE tenants ADD COLUMN configuration_set VARCHAR(255) AFTER tenant_tag');
       }
     }
 
