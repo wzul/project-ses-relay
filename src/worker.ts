@@ -36,20 +36,29 @@ export async function processQueue() {
       try {
         let rawEmail = item.raw_email;
         
-        // Add X-SES-TENANT header at the very beginning
-        // We use \r\n to match SMTP standard line endings
-        const customHeader = Buffer.from(`X-SES-TENANT: ${item.tenant_tag}\r\n`);
+        // Add X-Tenant-ID header at the very beginning
+        // We avoid X-SES- prefix as it might be reserved/stripped by AWS
+        const customHeader = Buffer.from(`X-Tenant-ID: ${item.tenant_tag}\r\n`);
         rawEmail = Buffer.concat([customHeader, rawEmail]);
 
         const rawEmailStr = rawEmail.toString('utf-8');
 
-        // Check if 'To:' header exists, if not, add it from envelope
+        // Ensure To: header exists
         if (!/^To:/im.test(rawEmailStr)) {
-          // Find the end of the first line (our custom header) to insert 'To' after it
           const firstLineEnd = rawEmail.indexOf('\r\n') + 2;
           rawEmail = Buffer.concat([
             rawEmail.subarray(0, firstLineEnd),
             Buffer.from(`To: ${item.envelope_to}\r\n`),
+            rawEmail.subarray(firstLineEnd)
+          ]);
+        }
+
+        // Ensure From: header exists
+        if (!/^From:/im.test(rawEmailStr)) {
+          const firstLineEnd = rawEmail.indexOf('\r\n') + 2;
+          rawEmail = Buffer.concat([
+            rawEmail.subarray(0, firstLineEnd),
+            Buffer.from(`From: ${item.envelope_from}\r\n`),
             rawEmail.subarray(firstLineEnd)
           ]);
         }
