@@ -79,16 +79,20 @@ export function createSmtpServer() {
             return callback(new Error('Not authenticated'));
           }
 
-          let rawEmail = '';
+          const chunks: Buffer[] = [];
           stream.on('data', (chunk) => {
-            rawEmail += chunk.toString();
+            chunks.push(chunk);
           });
 
           stream.on('end', async () => {
             try {
+              const rawEmail = Buffer.concat(chunks);
+              const envelopeTo = session.envelope.rcptTo.map((r) => r.address).join(',');
+              const envelopeFrom = session.envelope.mailFrom ? session.envelope.mailFrom.address : '';
+
               await pool.query(
-                'INSERT INTO mail_queue (tenant_id, raw_email, status) VALUES (?, ?, ?)',
-                [tenant.id, rawEmail, 'pending']
+                'INSERT INTO mail_queue (tenant_id, envelope_to, envelope_from, raw_email, status) VALUES (?, ?, ?, ?, ?)',
+                [tenant.id, envelopeTo, envelopeFrom, rawEmail, 'pending']
               );
               callback();
             } catch (err) {

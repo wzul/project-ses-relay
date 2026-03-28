@@ -16,7 +16,9 @@ const sesClient = new SESv2Client({
 interface MailQueueItem extends RowDataPacket {
   id: number;
   tenant_id: number;
-  raw_email: string;
+  envelope_to: string;
+  envelope_from: string;
+  raw_email: Buffer;
   tenant_tag: string;
 }
 
@@ -32,16 +34,32 @@ export async function processQueue() {
 
     for (const item of rows) {
       try {
-        // Add X-SES-TENANT header to raw email
-        const modifiedRawEmail = `X-SES-TENANT: ${item.tenant_tag}\r\n${item.raw_email}`;
+        let rawEmail = item.raw_email;
+        const rawEmailStr = rawEmail.toString('utf-8');
+
+        // Check if 'To:' header exists, if not, add it from envelope
+        if (!/^To:/im.test(rawEmailStr)) {
+          rawEmail = Buffer.concat([
+            Buffer.from(`To: ${item.envelope_to}\r\n`),
+            rawEmail
+          ]);
+        }
+
+        // Add X-SES-TENANT header
+        rawEmail = Buffer.concat([
+          Buffer.from(`X-SES-TENANT: ${item.tenant_tag}\r\n`),
+          rawEmail
+        ]);
 
         const command = new SendEmailCommand({
           Content: {
             Raw: {
-              Data: Buffer.from(modifiedRawEmail),
+              Data: rawEmail,
             },
           },
-          ListManagementOptions: undefined,
+          Destination: {
+            ToAddresses: item.envelope_to.split(','),
+          },
           EmailTags: [
             {
               Name: 'tenant_id',
