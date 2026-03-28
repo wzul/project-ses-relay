@@ -14,8 +14,8 @@ SMTP Relay with AWS SES Tenant Tagging & Queuing.
 1.  **Create a new Project** in Dokploy.
 2.  **Add a Compose Service** and point it to this repository.
 3.  **Configure Environment Variables** in the Dokploy UI:
-    - `AWS_ACCESS_KEY_ID`
-    - `AWS_SECRET_ACCESS_KEY`
+    - `AWS_ACCESS_KEY_ID` (Standard IAM Access Key, **NOT** SMTP credentials)
+    - `AWS_SECRET_ACCESS_KEY` (Standard IAM Secret Key, **NOT** SMTP credentials)
     - `AWS_REGION` (default: `us-east-1`)
     - `ADMIN_API_KEY` (a secure key to protect the Management API)
     - `DB_ROOT_PASSWORD` (for the MariaDB container)
@@ -66,10 +66,11 @@ If you are using **msmtp**, ensure you have these settings:
 host your-domain.com
 port 26
 tls off
-auth on
+auth plain
 user your_smtp_username
 password your_smtp_password
 ```
+*Note: Use `auth plain` instead of `auth on` to force msmtp to use plain text authentication over the unencrypted connection.*
 
 If you still get a `handshake failure`, it's because your client is trying to use STARTTLS on a server that has it disabled.
 
