@@ -2,7 +2,7 @@ services:
   app:
     build: .
     ports:
-      - "${SMTP_PORT:-587}:587"
+      - "${SMTP_PORT:-26}:26"
       # - "3000:3000" # This will be handled automatically by dokploy
     environment:
       - DB_HOST=${DB_HOST:-db}
@@ -13,8 +13,8 @@ services:
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       - ADMIN_API_KEY=${ADMIN_API_KEY}
-      - SMTP_DISABLE_TLS=${SMTP_DISABLE_TLS:-false}
-      - SMTP_PORT=587
+      - SMTP_DISABLE_TLS=${SMTP_DISABLE_TLS:-true}
+      - SMTP_PORT=26
       - API_PORT=3000
     depends_on:
       db:
