@@ -3,17 +3,41 @@ import { simpleParser } from 'mailparser';
 import bcrypt from 'bcrypt';
 import pool from './db';
 import { RowDataPacket } from 'mysql2';
+import fs from 'fs';
+import path from 'path';
 
 interface Tenant extends RowDataPacket {
   id: number;
   smtp_username: string;
+  smtp_password: string;
   smtp_password_hash: string;
   tenant_tag: string;
 }
 
 export function createSmtpServer() {
+  const keyPath = process.env.SMTP_KEY_PATH || '/app/certs/server.key';
+  const certPath = process.env.SMTP_CERT_PATH || '/app/certs/server.crt';
+  const disableTls = process.env.SMTP_DISABLE_TLS === 'true';
+
+  let key, cert;
+  if (!disableTls) {
+    try {
+      if (fs.existsSync(keyPath) && fs.existsSync(certPath)) {
+        key = fs.readFileSync(keyPath);
+        cert = fs.readFileSync(certPath);
+        console.log(`Using SMTP certificates from ${keyPath} and ${certPath}`);
+      }
+    } catch (err) {
+      console.error('Failed to load SMTP certificates:', err);
+    }
+  } else {
+    console.log('SMTP TLS/STARTTLS is disabled');
+  }
+
   const server = new SMTPServer({
-    secure: false, // STARTTLS will be used
+    secure: false, // STARTTLS will be used if key/cert are provided
+    key,
+    cert,
     authMethods: ['PLAIN', 'LOGIN'],
     onAuth(auth, session, callback) {
       (async () => {

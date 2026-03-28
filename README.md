@@ -51,6 +51,22 @@ Access the management dashboard at `http://localhost:3000` (or your Dokploy doma
 ### SMTP Relay
 Connect your SMTP client to `localhost:587` using the credentials provided by the API.
 
+#### Troubleshooting STARTTLS (SSL/TLS)
+If you get a `certificate verify failed` error, it's because the relay uses a self-signed certificate by default. You have two options:
+
+1.  **Disable Certificate Verification** in your SMTP client (e.g., PHPMailer):
+    ```php
+    $mail->SMTPOptions = array(
+        'ssl' => array(
+            'verify_peer' => false,
+            'verify_peer_name' => false,
+            'allow_self_signed' => true
+        )
+    );
+    ```
+2.  **Disable TLS in the Relay**: Set the environment variable `SMTP_DISABLE_TLS=true` in Dokploy/Docker Compose. This will make the relay use plain text (not recommended for production unless over a secure network).
+3.  **Provide Real Certificates**: Mount your real certificates into the container and set `SMTP_KEY_PATH` and `SMTP_CERT_PATH`.
+
 ## Architecture
 - **Node.js**: Main application logic.
 - **MariaDB**: Stores tenant information and the mail queue.

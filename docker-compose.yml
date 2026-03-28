@@ -13,6 +13,7 @@ services:
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       - ADMIN_API_KEY=${ADMIN_API_KEY}
+      - SMTP_DISABLE_TLS=${SMTP_DISABLE_TLS:-false}
       - SMTP_PORT=587
       - API_PORT=3000
     depends_on:
