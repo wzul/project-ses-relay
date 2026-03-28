@@ -61,6 +61,16 @@ $mail->SMTPAutoTLS = false;
 $mail->SMTPSecure = false;
 ```
 
+If you are using **msmtp**, ensure you have these settings:
+```conf
+host your-domain.com
+port 26
+tls off
+auth on
+user your_smtp_username
+password your_smtp_password
+```
+
 If you still get a `handshake failure`, it's because your client is trying to use STARTTLS on a server that has it disabled.
 
 ## Let's Encrypt Integration
