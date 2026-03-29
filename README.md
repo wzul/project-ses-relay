@@ -51,6 +51,7 @@ Access the dashboard at `http://your-domain.com` (or the Dokploy URL).
 Connect your SMTP client to `your-domain.com:587`.
 - **Security**: STARTTLS is **mandatory**. Plaintext connections are rejected.
 - **Authentication**: Use the `smtp_username` and `smtp_password` generated in the UI.
+- **Visibility**: Every email sent through the relay will include an `X-Tenant-ID` header containing the tenant's tag for easy identification in the message source.
 
 #### Client Configuration (msmtp)
 ```conf
@@ -63,6 +64,25 @@ auth plain
 user your_smtp_username
 password your_smtp_password
 ```
+
+## API Reference
+
+All API requests (except `/api/health`) require the `X-API-Key` header.
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/tenants` | GET | List all tenants |
+| `/api/tenants` | POST | Create a new tenant |
+| `/api/tenants/:id` | PUT | Update an existing tenant |
+| `/api/stats` | GET | Get real-time queue statistics |
+| `/api/health` | GET | Service health check (Public) |
+| `/api/verify` | GET | Verify Admin API Key |
+
+## AWS SES Setup
+To ensure emails are delivered correctly:
+1.  **Verify Domain**: Your `SMTP_DOMAIN` (or the domain used in `From` addresses) must be verified in the AWS SES Console.
+2.  **Configuration Sets**: If you assign a Configuration Set to a tenant, ensure it exists in the **same AWS Region** as your relay.
+3.  **Permissions**: The IAM user must have `ses:SendRawEmail` and `ses:GetSendQuota` permissions.
 
 ## Let's Encrypt Integration (Cloudflare DNS)
 
