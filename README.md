@@ -86,6 +86,11 @@ If you still get a `handshake failure`, it's because your client is trying to us
 
 The project is configured to automatically manage Let's Encrypt certificates using a Certbot sidecar.
 
+### Prerequisites
+1.  **DNS**: Point your domain (e.g., `mailerrelay.wanzul-hosting.com`) to your server's IP address.
+2.  **Dokploy Domain**: In Dokploy, add the domain `mailerrelay.wanzul-hosting.com` to your service. This ensures Traefik routes HTTP traffic to the Node.js app.
+3.  **Verify Access**: Ensure you can access the management dashboard via the domain before proceeding.
+
 ### 1. Initial Setup (One-time)
 Run this command to generate your first certificate. Replace `your-email@example.com` with your real email:
 
