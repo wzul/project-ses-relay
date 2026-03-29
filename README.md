@@ -92,9 +92,11 @@ The project is configured to automatically manage Let's Encrypt certificates usi
 3.  **Verify Access**: Ensure you can access the management dashboard via the domain before proceeding.
 
 ### 1. Initial Setup (One-time)
-Run this command to generate your first certificate. Replace `your-email@example.com` with your real email and `smtp.yourdomain.com` with your domain:
+Run this command to generate your first certificate. Replace `your-email@example.com` with your real email and `smtp.yourdomain.com` with your domain.
 
+**Note for Dokploy users**: You must run this command from the directory where Dokploy stores your compose file:
 ```bash
+cd /etc/dokploy/compose/<your-service-id>/code
 docker compose run --rm certbot certonly --webroot --webroot-path /var/www/html --email your-email@example.com --agree-tos --no-eff-email -d smtp.yourdomain.com
 ```
 
