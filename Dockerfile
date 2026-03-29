@@ -17,6 +17,6 @@ RUN mkdir -p /app/certs && \
     -keyout /app/certs/server.key -out /app/certs/server.crt \
     -subj "/C=US/ST=State/L=City/O=Organization/CN=localhost"
 
-EXPOSE 26 3000
+EXPOSE 587 3000
 
 CMD ["npm", "start"]
