@@ -26,15 +26,19 @@ export function createSmtpServer() {
       if (fs.existsSync(keyPath) && fs.existsSync(certPath)) {
         key = fs.readFileSync(keyPath);
         cert = fs.readFileSync(certPath);
-        console.log(`Using SMTP certificates from ${keyPath} and ${certPath}`);
+        console.log(`Using SMTP certificates from ${keyPath}`);
       } else {
-        console.warn(`SMTP certificates not found at ${keyPath} or ${certPath}. Falling back to self-signed if available.`);
+        console.warn(`SMTP certificates not found at ${keyPath}. Falling back to self-signed.`);
+        const fallbackKey = '/app/certs/server.key';
+        const fallbackCert = '/app/certs/server.crt';
+        if (fs.existsSync(fallbackKey) && fs.existsSync(fallbackCert)) {
+          key = fs.readFileSync(fallbackKey);
+          cert = fs.readFileSync(fallbackCert);
+        }
       }
     } catch (err) {
       console.error('Failed to load SMTP certificates:', err);
     }
-  } else {
-    console.log('SMTP TLS/STARTTLS is disabled');
   }
 
   const server = new SMTPServer({

@@ -16,9 +16,22 @@ services:
       - SMTP_DISABLE_TLS=${SMTP_DISABLE_TLS:-false}
       - SMTP_PORT=587
       - API_PORT=3000
+      - SMTP_KEY_PATH=/etc/letsencrypt/live/mailerrelay.wanzul-hosting.com/privkey.pem
+      - SMTP_CERT_PATH=/etc/letsencrypt/live/mailerrelay.wanzul-hosting.com/fullchain.pem
+    volumes:
+      - cert_data:/etc/letsencrypt
+      - ./public:/app/public
     depends_on:
       db:
         condition: service_healthy
+    restart: always
+
+  certbot:
+    image: certbot/certbot
+    volumes:
+      - cert_data:/etc/letsencrypt
+      - ./public:/var/www/html
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
     restart: always
 
   db:
@@ -39,3 +52,4 @@ services:
 
 volumes:
   db_data:
+  cert_data:

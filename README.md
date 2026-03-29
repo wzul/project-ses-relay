@@ -82,31 +82,32 @@ password your_smtp_password
 
 If you still get a `handshake failure`, it's because your client is trying to use STARTTLS on a server that has it disabled.
 
-## Let's Encrypt Integration
+## Let's Encrypt Integration (Automatic)
 
-To make your SMTP relay verifiable with Let's Encrypt, you need a valid domain name (e.g., `smtp.yourdomain.com`) pointing to your server.
+The project is configured to automatically manage Let's Encrypt certificates using a Certbot sidecar.
 
-### Option 1: Manual Certbot (Easiest for standalone)
-1.  Install Certbot on your host machine.
-2.  Generate a certificate:
-    ```bash
-    sudo certbot certonly --standalone -d smtp.yourdomain.com
-    ```
-3.  Update your `docker-compose.yml` to mount the certificates:
-    ```yaml
-    services:
-      app:
-        # ...
-        volumes:
-          - /etc/letsencrypt/live/smtp.yourdomain.com/privkey.pem:/app/certs/server.key:ro
-          - /etc/letsencrypt/live/smtp.yourdomain.com/fullchain.pem:/app/certs/server.crt:ro
-    ```
-4.  Restart the container.
+### 1. Initial Setup (One-time)
+Run this command to generate your first certificate. Replace `your-email@example.com` with your real email:
 
-### Option 2: Dokploy / Traefik (Advanced)
-Since Dokploy uses Traefik, you can technically use Traefik to handle TLS termination for port 587. However, this requires advanced Traefik configuration (TCP Routers with TLS). 
+```bash
+docker compose run --rm certbot certonly --webroot --webroot-path /var/www/html --email your-email@example.com --agree-tos --no-eff-email -d mailerrelay.wanzul-hosting.com
+```
 
-The most reliable way for SMTP is to let the application handle STARTTLS directly using the volume mount method described in Option 1.
+### 2. Automatic Renewal
+The `certbot` container in `docker-compose.yml` is configured to check for renewals every 12 hours. When the certificate is renewed, the Node.js app will use the new files on the next restart.
+
+### 3. Client Configuration (msmtp)
+Now that you have a valid certificate, you can enable verification:
+```conf
+host mailerrelay.wanzul-hosting.com
+port 587
+tls on
+tls_starttls on
+tls_certcheck on  # <--- Now you can turn this ON!
+auth plain
+user your_username
+password your_password
+```
 
 ## Architecture
 - **Node.js**: Main application logic.
