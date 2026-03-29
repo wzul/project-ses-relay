@@ -11,6 +11,16 @@ SMTP Relay with AWS SES Tenant Tagging & Queuing.
 - **Security**: Forced STARTTLS on port 587, API key protection, and rate limiting.
 - **Dockerized**: Fully containerized with `docker-compose`.
 
+## Use Case: Multi-Tenant Hosting
+
+This project is ideal for SaaS providers or agencies hosting multiple clients who need to send emails via AWS SES.
+
+- **Isolation**: Each client gets their own SMTP username and password.
+- **Automatic Tagging**: When a client sends an email, the relay automatically maps their credentials to their specific **Tenant ID** (via `TenantName` and `X-Tenant-ID` header).
+- **Zero Configuration for Clients**: Clients don't need to know about AWS, IAM keys, or Tenant IDs. They just use standard SMTP credentials.
+- **Credential Security**: Your master AWS IAM keys and main SMTP settings are never exposed to your clients.
+- **Control**: You can pause sending or set daily limits for specific clients without affecting others.
+
 ## Prerequisites
 - **AWS Account**: IAM user with `AmazonSESFullAccess` (or specific `ses:SendRawEmail` permissions).
 - **Cloudflare Account**: For automatic Let's Encrypt DNS challenge.
@@ -22,7 +32,7 @@ SMTP Relay with AWS SES Tenant Tagging & Queuing.
 |----------|-------------|---------|----------|
 | `AWS_ACCESS_KEY_ID` | Standard IAM Access Key (NOT SMTP) | - | Yes |
 | `AWS_SECRET_ACCESS_KEY` | Standard IAM Secret Key (NOT SMTP) | - | Yes |
-| `AWS_REGION` | AWS Region (e.g., `ap-southeast-1`) | `us-east-1` | Yes |
+| `AWS_REGION` | AWS Region (e.g., `ap-southeast-1`) | `ap-southeast-1` | Yes |
 | `ADMIN_API_KEY` | Key to protect the Management UI/API | - | Yes |
 | `CLOUDFLARE_API_TOKEN` | Cloudflare Token (Zone:DNS:Edit) | - | Yes |
 | `SMTP_DOMAIN` | Your relay domain (e.g., `relay.example.com`) | - | Yes |
@@ -60,10 +70,11 @@ port 587
 tls on
 tls_starttls on
 tls_certcheck on
-auth plain
+auth on
 user your_smtp_username
 password your_smtp_password
 ```
+*Note: `auth on` is secure here because the connection is encrypted via STARTTLS before authentication occurs.*
 
 ## API Reference
 
