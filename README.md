@@ -128,7 +128,44 @@ docker compose logs -f certbot # SSL renewal logs
 - **Manual Fix**: If the database schema gets out of sync, the app attempts auto-migration on startup.
 
 ## Architecture
+
+```mermaid
+graph TD
+    subgraph "External"
+        Client[SMTP Clients]
+        Admin[Admin Browser]
+        CF[Cloudflare DNS]
+        AWS[AWS SES v2]
+    end
+
+    subgraph "Docker Stack (Dokploy)"
+        subgraph "App Container"
+            SMTP[SMTP Server :587]
+            API[Management API :3000]
+            Worker[Background Worker]
+            UI[Web Dashboard]
+        end
+
+        DB[(MariaDB)]
+        Cert[Certbot Sidecar]
+    end
+
+    Client -- "STARTTLS (Port 587)" --> SMTP
+    Admin -- "HTTPS (Port 443)" --> UI
+    UI -- "REST API" --> API
+    
+    SMTP -- "Queue Email" --> DB
+    API -- "Manage Tenants" --> DB
+    
+    Worker -- "Poll Queue" --> DB
+    Worker -- "SendRawEmail (TenantName)" --> AWS
+    
+    Cert -- "DNS Challenge" --> CF
+    Cert -- "Shared Volume (SSL)" --> App
+```
+
+<div align="right">
+  <img src="https://wanzul-hosting.com/images/logo.png" width="150" alt="Wanzul Hosting Logo">
+</div>
+
 - **Node.js (TypeScript)**: Core logic and SMTP server.
-- **MariaDB**: Persistent storage for tenants and the mail queue.
-- **Certbot**: Automated SSL management via DNS challenge.
-- **AWS SES v2**: High-reputation email delivery with tenant context routing.
