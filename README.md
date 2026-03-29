@@ -82,31 +82,31 @@ password your_smtp_password
 
 If you still get a `handshake failure`, it's because your client is trying to use STARTTLS on a server that has it disabled.
 
-## Let's Encrypt Integration (Automatic)
+## Let's Encrypt Integration (Cloudflare DNS)
 
-The project is configured to automatically manage Let's Encrypt certificates using a Certbot sidecar.
+Since your server is behind Cloudflare and blocks direct external traffic, we use the **DNS Challenge**. This does not require port 80 to be open.
 
-### Prerequisites
-1.  **DNS**: Point your domain (e.g., `smtp.yourdomain.com`) to your server's IP address.
-2.  **Dokploy Domain**: In Dokploy, add the domain `smtp.yourdomain.com` to your service. This ensures Traefik routes HTTP traffic to the Node.js app.
-3.  **Verify Access**: Ensure you can access the management dashboard via the domain before proceeding.
+### 1. Get Cloudflare API Token
+1.  Go to [Cloudflare API Tokens](https://dash.cloudflare.com/profile/api-tokens).
+2.  Create a token with **Zone:DNS:Edit** permissions for your domain.
+3.  Add this token to your Dokploy environment variables as `CLOUDFLARE_API_TOKEN`.
 
-### 1. Initial Setup (One-time)
+### 2. Initial Setup (One-time)
 Run this command to generate your first certificate. Replace `your-email@example.com` with your real email and `smtp.yourdomain.com` with your domain.
 
-**Note for Dokploy users**: You must run this command from the directory where Dokploy stores your compose file:
 ```bash
 cd /etc/dokploy/compose/<your-service-id>/code
-docker compose run --rm certbot certonly --webroot --webroot-path /var/www/html --email your-email@example.com --agree-tos --no-eff-email -d smtp.yourdomain.com
+docker compose run --rm certbot certonly \
+  --dns-cloudflare \
+  --dns-cloudflare-propagation-seconds 60 \
+  --email your-email@example.com \
+  --agree-tos \
+  --no-eff-email \
+  -d smtp.yourdomain.com
 ```
 
-*If the command above fails with "No renewals were attempted", try adding `--entrypoint certbot` right after `run --rm`:*
-```bash
-docker compose run --rm --entrypoint certbot certbot certonly --webroot --webroot-path /var/www/html --email your-email@example.com --agree-tos --no-eff-email -d smtp.yourdomain.com
-```
-
-### 2. Automatic Renewal
-The `certbot` container in `docker-compose.yml` is configured to check for renewals every 12 hours. When the certificate is renewed, the Node.js app will use the new files on the next restart.
+### 3. Automatic Renewal
+The `certbot` container will automatically renew the certificate every 12 hours using the API token provided.
 
 ### 3. Client Configuration (msmtp)
 Now that you have a valid certificate, you can enable verification:

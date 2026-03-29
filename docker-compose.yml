@@ -27,10 +27,11 @@ services:
     restart: always
 
   certbot:
-    image: certbot/certbot
+    image: certbot/dns-cloudflare
     volumes:
       - cert_data:/etc/letsencrypt
-      - ./public:/var/www/html
+    environment:
+      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
     command: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
     restart: always
 
