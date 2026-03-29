@@ -16,8 +16,8 @@ services:
       - SMTP_DISABLE_TLS=${SMTP_DISABLE_TLS:-false}
       - SMTP_PORT=587
       - API_PORT=3000
-      - SMTP_KEY_PATH=/etc/letsencrypt/live/mailerrelay.wanzul-hosting.com/privkey.pem
-      - SMTP_CERT_PATH=/etc/letsencrypt/live/mailerrelay.wanzul-hosting.com/fullchain.pem
+      - SMTP_KEY_PATH=/etc/letsencrypt/live/${SMTP_DOMAIN:-smtp.yourdomain.com}/privkey.pem
+      - SMTP_CERT_PATH=/etc/letsencrypt/live/${SMTP_DOMAIN:-smtp.yourdomain.com}/fullchain.pem
     volumes:
       - cert_data:/etc/letsencrypt
       - ./public:/app/public

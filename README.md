@@ -87,15 +87,15 @@ If you still get a `handshake failure`, it's because your client is trying to us
 The project is configured to automatically manage Let's Encrypt certificates using a Certbot sidecar.
 
 ### Prerequisites
-1.  **DNS**: Point your domain (e.g., `mailerrelay.wanzul-hosting.com`) to your server's IP address.
-2.  **Dokploy Domain**: In Dokploy, add the domain `mailerrelay.wanzul-hosting.com` to your service. This ensures Traefik routes HTTP traffic to the Node.js app.
+1.  **DNS**: Point your domain (e.g., `smtp.yourdomain.com`) to your server's IP address.
+2.  **Dokploy Domain**: In Dokploy, add the domain `smtp.yourdomain.com` to your service. This ensures Traefik routes HTTP traffic to the Node.js app.
 3.  **Verify Access**: Ensure you can access the management dashboard via the domain before proceeding.
 
 ### 1. Initial Setup (One-time)
-Run this command to generate your first certificate. Replace `your-email@example.com` with your real email:
+Run this command to generate your first certificate. Replace `your-email@example.com` with your real email and `smtp.yourdomain.com` with your domain:
 
 ```bash
-docker compose run --rm certbot certonly --webroot --webroot-path /var/www/html --email your-email@example.com --agree-tos --no-eff-email -d mailerrelay.wanzul-hosting.com
+docker compose run --rm certbot certonly --webroot --webroot-path /var/www/html --email your-email@example.com --agree-tos --no-eff-email -d smtp.yourdomain.com
 ```
 
 ### 2. Automatic Renewal
@@ -104,7 +104,7 @@ The `certbot` container in `docker-compose.yml` is configured to check for renew
 ### 3. Client Configuration (msmtp)
 Now that you have a valid certificate, you can enable verification:
 ```conf
-host mailerrelay.wanzul-hosting.com
+host smtp.yourdomain.com
 port 587
 tls on
 tls_starttls on
