@@ -127,6 +127,22 @@ docker compose logs -f certbot # SSL renewal logs
 - **Cleanup**: Sent emails are automatically deleted after 7 days.
 - **Manual Fix**: If the database schema gets out of sync, the app attempts auto-migration on startup.
 
+## How it Works (Simplified)
+
+```mermaid
+graph LR
+    WP[WordPress] -- "SMTP (Port 587)" --> Relay[SES Relay]
+    Relay -- "AWS API (v2)" --> SES[AWS SES]
+```
+
+## How it Works (Simplified)
+
+```mermaid
+graph LR
+    WP[WordPress] -- "SMTP (Port 587)" --> Relay[SES Relay]
+    Relay -- "AWS API (v2)" --> SES[AWS SES]
+```
+
 ## Architecture
 
 ```mermaid
@@ -163,9 +179,5 @@ graph TD
     Cert -- "DNS Challenge" --> CF
     Cert -- "Shared Volume (SSL)" --> App
 ```
-
-<div align="right">
-  <img src="https://wanzul-hosting.com/images/logo.png" width="150" alt="Wanzul Hosting Logo">
-</div>
 
 - **Node.js (TypeScript)**: Core logic and SMTP server.
