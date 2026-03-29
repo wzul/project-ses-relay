@@ -17,7 +17,6 @@ interface Tenant extends RowDataPacket {
 
 export function createSmtpServer() {
   const domain = process.env.SMTP_DOMAIN;
-  const disableTls = process.env.SMTP_DISABLE_TLS === 'true';
 
   let keyPath = process.env.SMTP_KEY_PATH;
   let certPath = process.env.SMTP_CERT_PATH;
@@ -33,32 +32,28 @@ export function createSmtpServer() {
   certPath = certPath || '/app/certs/server.crt';
 
   let key, cert;
-  if (!disableTls) {
-    try {
-      if (fs.existsSync(keyPath) && fs.existsSync(certPath)) {
-        key = fs.readFileSync(keyPath);
-        cert = fs.readFileSync(certPath);
-        console.log(`Using SMTP certificates from ${keyPath}`);
-      } else {
-        console.warn(`SMTP certificates not found at ${keyPath}. Falling back to self-signed.`);
-        const fallbackKey = '/app/certs/server.key';
-        const fallbackCert = '/app/certs/server.crt';
-        if (fs.existsSync(fallbackKey) && fs.existsSync(fallbackCert)) {
-          key = fs.readFileSync(fallbackKey);
-          cert = fs.readFileSync(fallbackCert);
-        }
+  try {
+    if (fs.existsSync(keyPath) && fs.existsSync(certPath)) {
+      key = fs.readFileSync(keyPath);
+      cert = fs.readFileSync(certPath);
+      console.log(`Using SMTP certificates from ${keyPath}`);
+    } else {
+      console.warn(`SMTP certificates not found at ${keyPath}. Falling back to self-signed.`);
+      const fallbackKey = '/app/certs/server.key';
+      const fallbackCert = '/app/certs/server.crt';
+      if (fs.existsSync(fallbackKey) && fs.existsSync(fallbackCert)) {
+        key = fs.readFileSync(fallbackKey);
+        cert = fs.readFileSync(fallbackCert);
       }
-    } catch (err) {
-      console.error('Failed to load SMTP certificates:', err);
     }
+  } catch (err) {
+    console.error('Failed to load SMTP certificates:', err);
   }
 
   const server = new SMTPServer({
     secure: false, // STARTTLS will be used if key/cert are provided
     key,
     cert,
-    allowInsecureAuth: true, // Allow authentication over unencrypted connections
-    disabledCommands: disableTls ? ['STARTTLS'] : [],
     authMethods: ['PLAIN', 'LOGIN'],
     onAuth(auth, session, callback) {
       (async () => {

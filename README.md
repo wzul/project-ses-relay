@@ -80,8 +80,6 @@ password your_smtp_password
 ```
 *Note: `tls_certcheck off` is required to ignore self-signed certificate errors.*
 
-If you still get a `handshake failure`, it's because your client is trying to use STARTTLS on a server that has it disabled.
-
 ## Let's Encrypt Integration (Cloudflare DNS)
 
 Since your server is behind Cloudflare and blocks direct external traffic, we use the **DNS Challenge**. This does not require port 80 to be open.
