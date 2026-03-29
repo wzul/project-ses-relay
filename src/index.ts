@@ -14,6 +14,11 @@ app.use(express.json());
 // Serve static files from the public folder
 app.use(express.static(path.join(__dirname, '../public')));
 
+// Fallback to index.html for the root path
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/index.html'));
+});
+
 app.use('/api', apiRouter);
 
 const smtpServer = createSmtpServer();

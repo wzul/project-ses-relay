@@ -9,7 +9,7 @@ services:
       - DB_USER=${DB_USER:-ses_relay}
       - DB_PASSWORD=${DB_PASSWORD:-ses_relay_pass}
       - DB_NAME=${DB_NAME:-ses_relay}
-      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_REGION=${AWS_REGION:-ap-southeast-1}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       - ADMIN_API_KEY=${ADMIN_API_KEY}
@@ -18,7 +18,6 @@ services:
       - SMTP_DOMAIN=${SMTP_DOMAIN:-smtp.yourdomain.com}
     volumes:
       - cert_data:/etc/letsencrypt
-      - ./public:/app/public
     depends_on:
       db:
         condition: service_healthy
