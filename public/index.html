@@ -42,6 +42,10 @@
                         <label class="block text-sm font-medium text-gray-700">Configuration Set</label>
                         <input type="text" id="editConfigurationSet" class="w-full p-2 border rounded mt-1">
                     </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Daily Limit</label>
+                        <input type="number" id="editDailyLimit" class="w-full p-2 border rounded mt-1">
+                    </div>
                 </div>
                 <div class="flex justify-end gap-4 mt-8">
                     <button onclick="closeEditModal()" class="px-4 py-2 text-gray-600 hover:underline">Cancel</button>
@@ -50,13 +54,34 @@
             </div>
         </div>
 
+        <!-- Queue Stats Section -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+            <div class="bg-white p-4 rounded-lg shadow-md border-l-4 border-blue-500">
+                <p class="text-sm text-gray-500 uppercase font-bold">Pending</p>
+                <p id="statPending" class="text-2xl font-bold">0</p>
+            </div>
+            <div class="bg-white p-4 rounded-lg shadow-md border-l-4 border-yellow-500">
+                <p class="text-sm text-gray-500 uppercase font-bold">Processing</p>
+                <p id="statProcessing" class="text-2xl font-bold">0</p>
+            </div>
+            <div class="bg-white p-4 rounded-lg shadow-md border-l-4 border-green-500">
+                <p class="text-sm text-gray-500 uppercase font-bold">Sent</p>
+                <p id="statSent" class="text-2xl font-bold">0</p>
+            </div>
+            <div class="bg-white p-4 rounded-lg shadow-md border-l-4 border-red-500">
+                <p class="text-sm text-gray-500 uppercase font-bold">Failed</p>
+                <p id="statFailed" class="text-2xl font-bold">0</p>
+            </div>
+        </div>
+
         <!-- Create Tenant Section -->
         <div class="bg-white p-6 rounded-lg shadow-md mb-8">
             <h2 class="text-xl font-semibold mb-4">Create New Tenant</h2>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                <input type="text" id="tenantName" placeholder="Tenant Name (e.g. Acme Corp)" class="p-2 border rounded">
-                <input type="text" id="tenantTag" placeholder="Tenant Tag (e.g. acme_123)" class="p-2 border rounded">
-                <input type="text" id="configurationSet" placeholder="AWS Configuration Set (Optional)" class="p-2 border rounded">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                <input type="text" id="tenantName" placeholder="Tenant Name" class="p-2 border rounded">
+                <input type="text" id="tenantTag" placeholder="Tenant Tag" class="p-2 border rounded">
+                <input type="text" id="configurationSet" placeholder="AWS Config Set" class="p-2 border rounded">
+                <input type="number" id="dailyLimit" placeholder="Daily Limit (1000)" class="p-2 border rounded">
             </div>
             <button onclick="createTenant()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Create Tenant</button>
             <div id="createResult" class="mt-4 hidden p-4 bg-gray-50 rounded border"></div>
@@ -77,6 +102,7 @@
                             <th class="py-2 px-4">SMTP Password</th>
                             <th class="py-2 px-4">Tag</th>
                             <th class="py-2 px-4">Config Set</th>
+                            <th class="py-2 px-4">Limit</th>
                             <th class="py-2 px-4">Created</th>
                             <th class="py-2 px-4">Actions</th>
                         </tr>
@@ -106,6 +132,8 @@
                 if (response.ok) {
                     showDashboard();
                     loadTenants();
+                    loadStats();
+                    setInterval(loadStats, 10000); // Refresh stats every 10s
                 } else {
                     showLogin();
                 }
@@ -137,6 +165,8 @@
                     localStorage.setItem(API_KEY_STORAGE_KEY, key);
                     showDashboard();
                     loadTenants();
+                    loadStats();
+                    setInterval(loadStats, 10000);
                 } else {
                     document.getElementById('loginError').classList.remove('hidden');
                 }
@@ -154,6 +184,7 @@
             const name = document.getElementById('tenantName').value;
             const tenant_tag = document.getElementById('tenantTag').value;
             const configuration_set = document.getElementById('configurationSet').value;
+            const daily_limit = document.getElementById('dailyLimit').value;
             const apiKey = localStorage.getItem(API_KEY_STORAGE_KEY);
 
             if (!name || !tenant_tag) return alert('Please fill all fields');
@@ -166,7 +197,7 @@
                         'Content-Type': 'application/json',
                         'X-API-Key': apiKey
                     },
-                    body: JSON.stringify({ name, tenant_tag, configuration_set })
+                    body: JSON.stringify({ name, tenant_tag, configuration_set, daily_limit })
                 });
 
                 const data = await response.json();
@@ -204,6 +235,7 @@
                         <td class="py-2 px-4 font-mono text-sm">${t.smtp_password}</td>
                         <td class="py-2 px-4">${t.tenant_tag}</td>
                         <td class="py-2 px-4 text-sm text-gray-500">${t.configuration_set || '-'}</td>
+                        <td class="py-2 px-4 text-sm text-gray-500">${t.daily_limit}</td>
                         <td class="py-2 px-4 text-sm text-gray-500">${new Date(t.created_at).toLocaleDateString()}</td>
                         <td class="py-2 px-4">
                             <button onclick='openEditModal(${JSON.stringify(t)})' class="text-blue-600 hover:underline">Edit</button>
@@ -220,6 +252,7 @@
             document.getElementById('editTenantName').value = tenant.name;
             document.getElementById('editTenantTag').value = tenant.tenant_tag;
             document.getElementById('editConfigurationSet').value = tenant.configuration_set || '';
+            document.getElementById('editDailyLimit').value = tenant.daily_limit;
             document.getElementById('editModal').classList.remove('hidden');
         }
 
@@ -232,6 +265,7 @@
             const name = document.getElementById('editTenantName').value;
             const tenant_tag = document.getElementById('editTenantTag').value;
             const configuration_set = document.getElementById('editConfigurationSet').value;
+            const daily_limit = document.getElementById('editDailyLimit').value;
             const apiKey = localStorage.getItem(API_KEY_STORAGE_KEY);
 
             if (!name || !tenant_tag) return alert('Please fill all fields');
@@ -244,7 +278,7 @@
                         'Content-Type': 'application/json',
                         'X-API-Key': apiKey
                     },
-                    body: JSON.stringify({ name, tenant_tag, configuration_set })
+                    body: JSON.stringify({ name, tenant_tag, configuration_set, daily_limit })
                 });
 
                 if (!response.ok) {
@@ -256,6 +290,26 @@
                 loadTenants();
             } catch (err) {
                 alert(err.message);
+            }
+        }
+
+        async function loadStats() {
+            const apiKey = localStorage.getItem(API_KEY_STORAGE_KEY);
+            if (!apiKey) return;
+
+            try {
+                const response = await fetch('/api/stats', {
+                    headers: { 'X-API-Key': apiKey }
+                });
+                const data = await response.json();
+                if (!response.ok) return;
+
+                document.getElementById('statPending').innerText = data.counts.pending || 0;
+                document.getElementById('statProcessing').innerText = data.counts.processing || 0;
+                document.getElementById('statSent').innerText = data.counts.sent || 0;
+                document.getElementById('statFailed').innerText = data.counts.failed || 0;
+            } catch (err) {
+                console.error('Failed to load stats');
             }
         }
 

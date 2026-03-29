@@ -25,8 +25,44 @@ router.get('/verify', authenticateAdmin, (req, res) => {
   res.json({ success: true });
 });
 
+router.get('/health', async (req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.json({ status: 'healthy', database: 'connected' });
+  } catch (err) {
+    res.status(500).json({ status: 'unhealthy', error: 'Database connection failed' });
+  }
+});
+
+router.get('/stats', authenticateAdmin, async (req, res) => {
+  try {
+    const [rows] = await pool.query<any[]>(`
+      SELECT 
+        status, 
+        COUNT(*) as count 
+      FROM mail_queue 
+      GROUP BY status
+    `);
+    
+    const [errors] = await pool.query<any[]>(`
+      SELECT error_message, created_at 
+      FROM mail_queue 
+      WHERE status = 'failed' 
+      ORDER BY created_at DESC 
+      LIMIT 5
+    `);
+
+    res.json({
+      counts: rows.reduce((acc, r) => ({ ...acc, [r.status]: r.count }), {}),
+      recent_errors: errors
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch stats' });
+  }
+});
+
 router.post('/tenants', authenticateAdmin, async (req, res) => {
-  const { name, tenant_tag, configuration_set } = req.body;
+  const { name, tenant_tag, configuration_set, daily_limit } = req.body;
 
   if (!name || !tenant_tag) {
     return res.status(400).json({ error: 'Name and tenant_tag are required' });
@@ -38,8 +74,8 @@ router.post('/tenants', authenticateAdmin, async (req, res) => {
     const smtp_password_hash = await bcrypt.hash(smtp_password, 10);
 
     const [result] = await pool.query(
-      'INSERT INTO tenants (name, smtp_username, smtp_password, smtp_password_hash, tenant_tag, configuration_set) VALUES (?, ?, ?, ?, ?, ?)',
-      [name, smtp_username, smtp_password, smtp_password_hash, tenant_tag, configuration_set || null]
+      'INSERT INTO tenants (name, smtp_username, smtp_password, smtp_password_hash, tenant_tag, configuration_set, daily_limit) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [name, smtp_username, smtp_password, smtp_password_hash, tenant_tag, configuration_set || null, daily_limit || 1000]
     );
 
     res.status(201).json({
@@ -49,6 +85,7 @@ router.post('/tenants', authenticateAdmin, async (req, res) => {
       smtp_password,
       tenant_tag,
       configuration_set,
+      daily_limit: daily_limit || 1000
     });
   } catch (err) {
     console.error('Create tenant error:', err);
@@ -58,7 +95,7 @@ router.post('/tenants', authenticateAdmin, async (req, res) => {
 
 router.get('/tenants', authenticateAdmin, async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT id, name, smtp_username, smtp_password, tenant_tag, configuration_set, created_at FROM tenants');
+    const [rows] = await pool.query('SELECT id, name, smtp_username, smtp_password, tenant_tag, configuration_set, daily_limit, created_at FROM tenants');
     res.json(rows);
   } catch (err) {
     console.error('List tenants error:', err);
@@ -68,7 +105,7 @@ router.get('/tenants', authenticateAdmin, async (req, res) => {
 
 router.put('/tenants/:id', authenticateAdmin, async (req, res) => {
   const { id } = req.params;
-  const { name, tenant_tag, configuration_set } = req.body;
+  const { name, tenant_tag, configuration_set, daily_limit } = req.body;
 
   if (!name || !tenant_tag) {
     return res.status(400).json({ error: 'Name and tenant_tag are required' });
@@ -76,8 +113,8 @@ router.put('/tenants/:id', authenticateAdmin, async (req, res) => {
 
   try {
     await pool.query(
-      'UPDATE tenants SET name = ?, tenant_tag = ?, configuration_set = ? WHERE id = ?',
-      [name, tenant_tag, configuration_set || null, id]
+      'UPDATE tenants SET name = ?, tenant_tag = ?, configuration_set = ?, daily_limit = ? WHERE id = ?',
+      [name, tenant_tag, configuration_set || null, daily_limit || 1000, id]
     );
     res.json({ success: true });
   } catch (err) {

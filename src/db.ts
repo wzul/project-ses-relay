@@ -92,6 +92,9 @@ export async function initDb() {
       if (!tenantColNames.includes('configuration_set')) {
         await connection.query('ALTER TABLE tenants ADD COLUMN configuration_set VARCHAR(255) AFTER tenant_tag');
       }
+      if (!tenantColNames.includes('daily_limit')) {
+        await connection.query('ALTER TABLE tenants ADD COLUMN daily_limit INT DEFAULT 1000 AFTER configuration_set');
+      }
     }
 
     // Ensure raw_email is LONGBLOB (in case it was LONGTEXT before)

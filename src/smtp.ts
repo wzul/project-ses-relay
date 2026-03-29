@@ -12,6 +12,7 @@ interface Tenant extends RowDataPacket {
   smtp_password: string;
   smtp_password_hash: string;
   tenant_tag: string;
+  daily_limit: number;
 }
 
 export function createSmtpServer() {
@@ -77,6 +78,17 @@ export function createSmtpServer() {
           const tenant = (session as any).tenant as Tenant;
           if (!tenant) {
             return callback(new Error('Not authenticated'));
+          }
+
+          // Rate Limit Check
+          const [countResult] = await pool.query<any[]>(
+            'SELECT COUNT(*) as count FROM mail_queue WHERE tenant_id = ? AND created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)',
+            [tenant.id]
+          );
+          
+          if (countResult[0].count >= tenant.daily_limit) {
+            console.warn(`Tenant ${tenant.tenant_tag} exceeded daily limit of ${tenant.daily_limit}`);
+            return callback(new Error(`Daily limit of ${tenant.daily_limit} emails exceeded`));
           }
 
           const chunks: Buffer[] = [];
