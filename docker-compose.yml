@@ -28,13 +28,14 @@ services:
 
   certbot:
     image: certbot/dns-cloudflare
+    entrypoint: /bin/sh
     working_dir: /
     volumes:
       - cert_data:/etc/letsencrypt
     environment:
       - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
     command: >
-      /bin/sh -c "
+      -c "
       echo 'dns_cloudflare_api_token = $${CLOUDFLARE_API_TOKEN}' > /etc/letsencrypt/cloudflare.ini &&
       chmod 600 /etc/letsencrypt/cloudflare.ini &&
       trap exit TERM; while :; do certbot renew --dns-cloudflare --dns-cloudflare-credentials /etc/letsencrypt/cloudflare.ini; sleep 12h & wait $${!}; done;
