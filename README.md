@@ -100,6 +100,11 @@ cd /etc/dokploy/compose/<your-service-id>/code
 docker compose run --rm certbot certonly --webroot --webroot-path /var/www/html --email your-email@example.com --agree-tos --no-eff-email -d smtp.yourdomain.com
 ```
 
+*If the command above fails with "No renewals were attempted", try adding `--entrypoint certbot` right after `run --rm`:*
+```bash
+docker compose run --rm --entrypoint certbot certbot certonly --webroot --webroot-path /var/www/html --email your-email@example.com --agree-tos --no-eff-email -d smtp.yourdomain.com
+```
+
 ### 2. Automatic Renewal
 The `certbot` container in `docker-compose.yml` is configured to check for renewals every 12 hours. When the certificate is renewed, the Node.js app will use the new files on the next restart.
 
