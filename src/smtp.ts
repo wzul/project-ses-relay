@@ -16,9 +16,21 @@ interface Tenant extends RowDataPacket {
 }
 
 export function createSmtpServer() {
-  const keyPath = process.env.SMTP_KEY_PATH || '/app/certs/server.key';
-  const certPath = process.env.SMTP_CERT_PATH || '/app/certs/server.crt';
+  const domain = process.env.SMTP_DOMAIN;
   const disableTls = process.env.SMTP_DISABLE_TLS === 'true';
+
+  let keyPath = process.env.SMTP_KEY_PATH;
+  let certPath = process.env.SMTP_CERT_PATH;
+
+  // If SMTP_DOMAIN is set, prioritize Let's Encrypt paths
+  if (domain && !keyPath) {
+    keyPath = `/etc/letsencrypt/live/${domain}/privkey.pem`;
+    certPath = `/etc/letsencrypt/live/${domain}/fullchain.pem`;
+  }
+
+  // Fallback to default paths if still not set
+  keyPath = keyPath || '/app/certs/server.key';
+  certPath = certPath || '/app/certs/server.crt';
 
   let key, cert;
   if (!disableTls) {
