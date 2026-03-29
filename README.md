@@ -96,7 +96,7 @@ Run this command to generate your first certificate. Replace `your-email@example
 
 ```bash
 cd /etc/dokploy/compose/<your-service-id>/code
-docker compose run --rm certbot /bin/sh -c "
+docker compose run --rm -w / certbot /bin/sh -c "
   echo 'dns_cloudflare_api_token = \$CLOUDFLARE_API_TOKEN' > /etc/letsencrypt/cloudflare.ini && 
   chmod 600 /etc/letsencrypt/cloudflare.ini && 
   certbot certonly --dns-cloudflare --dns-cloudflare-credentials /etc/letsencrypt/cloudflare.ini --dns-cloudflare-propagation-seconds 60 --email your-email@example.com --agree-tos --no-eff-email -d smtp.yourdomain.com

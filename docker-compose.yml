@@ -28,6 +28,7 @@ services:
 
   certbot:
     image: certbot/dns-cloudflare
+    working_dir: /
     volumes:
       - cert_data:/etc/letsencrypt
     environment:
