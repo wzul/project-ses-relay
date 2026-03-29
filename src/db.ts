@@ -51,11 +51,13 @@ export async function initDb() {
         envelope_to TEXT NOT NULL,
         envelope_from VARCHAR(255) NOT NULL,
         raw_email LONGBLOB NOT NULL,
-        status ENUM('pending', 'sent', 'failed') DEFAULT 'pending',
+        status ENUM('pending', 'processing', 'sent', 'failed') DEFAULT 'pending',
         retries INT DEFAULT 0,
+        next_retry_at TIMESTAMP NULL,
         error_message TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+        FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+        INDEX idx_status_retry (status, next_retry_at)
       )
     `);
 
@@ -68,6 +70,18 @@ export async function initDb() {
     }
     if (!columnNames.includes('envelope_from')) {
       await connection.query('ALTER TABLE mail_queue ADD COLUMN envelope_from VARCHAR(255) NOT NULL AFTER envelope_to');
+    }
+    if (!columnNames.includes('next_retry_at')) {
+      await connection.query('ALTER TABLE mail_queue ADD COLUMN next_retry_at TIMESTAMP NULL AFTER retries');
+    }
+    
+    // Update status ENUM to include 'processing'
+    await connection.query("ALTER TABLE mail_queue MODIFY COLUMN status ENUM('pending', 'processing', 'sent', 'failed') DEFAULT 'pending'");
+
+    // Add index for performance if it doesn't exist
+    const [indexes] = await connection.query<any[]>(`SHOW INDEX FROM mail_queue WHERE Key_name = 'idx_status_retry'`);
+    if (indexes.length === 0) {
+      await connection.query('CREATE INDEX idx_status_retry ON mail_queue (status, next_retry_at)');
     }
     if (!columnNames.includes('smtp_password')) {
       const [tenantCols] = await connection.query<any[]>('SHOW COLUMNS FROM tenants');
