@@ -135,14 +135,6 @@ graph LR
     Relay -- "AWS API (v2)" --> SES[AWS SES]
 ```
 
-## How it Works (Simplified)
-
-```mermaid
-graph LR
-    WP[WordPress] -- "SMTP (Port 587)" --> Relay[SES Relay]
-    Relay -- "AWS API (v2)" --> SES[AWS SES]
-```
-
 ## Architecture
 
 ```mermaid
