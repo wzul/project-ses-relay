@@ -1,22 +1,34 @@
-FROM node:22-alpine
-
-# Install openssl for self-signed certificate generation
-RUN apk add --no-cache openssl
-
+FROM node:24-alpine AS deps
 WORKDIR /app
-
 COPY package*.json ./
-RUN npm install
+RUN npm ci --omit=dev
 
-COPY . .
+FROM node:24-alpine AS build
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY tsconfig.json ./
+COPY src ./src
 RUN npm run build
 
-# Generate self-signed certificate for STARTTLS
-RUN mkdir -p /app/certs && \
-    openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-    -keyout /app/certs/server.key -out /app/certs/server.crt \
-    -subj "/C=US/ST=State/L=City/O=Organization/CN=localhost"
+FROM node:24-alpine AS selfsigned
+RUN apk add --no-cache openssl && mkdir -p /certs && \
+    openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+      -keyout /certs/server.key -out /certs/server.crt \
+      -subj "/CN=localhost"
 
+FROM node:24-alpine
+ENV NODE_ENV=production
+WORKDIR /app
+
+RUN addgroup -S app && adduser -S app -G app && mkdir -p /data && chown app:app /data
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=build /app/dist ./dist
+COPY --from=selfsigned --chown=app:app /certs ./certs
+COPY public ./public
+COPY package.json ./
+
+USER app
 EXPOSE 587 3000
-
-CMD ["npm", "start"]
+CMD ["node", "dist/index.js"]

@@ -3,7 +3,7 @@
 SMTP Relay with AWS SES Tenant Tagging & Queuing.
 
 ## Features
-- **SMTP Relay**: Authenticates users against a MariaDB database.
+- **SMTP Relay**: Authenticates users against a local SQLite database (single file, no DB server).
 - **Queuing**: Emails are stored in a `mail_queue` table before being sent to AWS SES.
 - **Tenant Routing**: Automatically routes emails through AWS SES `TenantName` context.
 - **Management UI**: Secure dashboard to manage tenants, limits, and configuration sets.
@@ -36,8 +36,9 @@ This project is ideal for SaaS providers or agencies hosting multiple clients wh
 | `ADMIN_API_KEY` | Key to protect the Management UI/API | - | Yes |
 | `CLOUDFLARE_API_TOKEN` | Cloudflare Token (Zone:DNS:Edit) | - | Yes |
 | `SMTP_DOMAIN` | Your relay domain (e.g., `relay.example.com`) | - | Yes |
-| `DB_PASSWORD` | Password for the `ses_relay` DB user | `ses_relay_pass` | Yes |
-| `DB_ROOT_PASSWORD` | Root password for MariaDB container | `root_pass` | Yes |
+| `DB_PATH` | SQLite database file | `/data/relay.db` | No |
+| `QUEUE_POLL_MS` | Queue poll interval in ms | `10000` | No |
+| `QUEUE_BATCH_SIZE` | Emails claimed per poll cycle | `10` | No |
 
 ## Deployment on Dokploy
 
@@ -47,7 +48,7 @@ This project is ideal for SaaS providers or agencies hosting multiple clients wh
 4.  **Expose Ports**:
     - Dokploy handles port `3000` (Web UI) automatically via Traefik.
     - **Manually expose port `587`** in Dokploy settings for SMTP traffic.
-5.  **Deploy**: The application will automatically initialize the database schema on startup.
+5.  **Deploy**: The application creates the SQLite schema on first start. The database lives on the `relay_data` volume — back that volume up, that file is the whole state.
 
 ## Usage
 
@@ -117,15 +118,15 @@ The `certbot` container checks for renewals every 12 hours. The `app` container 
 
 ### Monitoring Logs
 ```bash
-docker compose logs -f app    # Application & Worker logs
-docker compose logs -f db     # Database logs
+docker compose logs -f app     # Application & Worker logs
 docker compose logs -f certbot # SSL renewal logs
+docker compose exec app ls -l /data   # SQLite file + WAL
 ```
 
 ### Queue Management
 - **Retries**: Failed emails are retried 3 times with exponential backoff.
-- **Cleanup**: Sent emails are automatically deleted after 7 days.
-- **Manual Fix**: If the database schema gets out of sync, the app attempts auto-migration on startup.
+- **Cleanup**: Sent emails are deleted after 7 days; failures that exhausted retries after 30 days.
+- **Backup**: `docker run --rm -v <stack>_relay_data:/d -v $PWD:/b alpine tar czf /b/relay-db.tgz -C /d .` — stop the app first (or use `sqlite3 relay.db '.backup'`).
 
 ## How it Works (Simplified)
 
@@ -154,7 +155,7 @@ graph TD
             UI[Web Dashboard]
         end
 
-        DB[(MariaDB)]
+        DB[(SQLite file)]
         Cert[Certbot Sidecar]
     end
 
@@ -173,3 +174,40 @@ graph TD
 ```
 
 - **Node.js (TypeScript)**: Core logic and SMTP server.
+
+## Resource footprint
+
+The stack is two containers (app + certbot sidecar) and no database server:
+
+| | v1 (MariaDB) | v2 (SQLite) |
+|---|---|---|
+| Containers | 3 | 2 |
+| RAM (idle, measured) | ~51 MiB | ~27 MiB |
+| Images | ~836 MB | ~378 MB |
+| Data on disk | 162 MB volume | ~100 KB file |
+
+Runtime dependencies: `express`, `smtp-server`, `@aws-sdk/client-sesv2`. Password
+hashing uses `node:crypto` scrypt and storage uses the built-in `node:sqlite`, so
+there is no native module to compile.
+
+## Migrating an existing MariaDB deployment (v1 -> v2)
+
+Tenants are the only state worth carrying over; queued mail does not survive a relay
+restart anyway. Seed the SQLite volume **before** the container starts:
+
+```bash
+STACK=aws-and-tools-aws-ses-relay-yplxvu   # compose appName
+docker volume create ${STACK}_relay_data
+
+# export tenants from the running MariaDB
+docker exec ${STACK}-db-1 sh -c 'mariadb -u"$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" -N -B \
+  -e "select id,name,smtp_username,smtp_password,tenant_tag,ifnull(configuration_set,\"\"),daily_limit from tenants"' \
+  | docker run --rm -i -v ${STACK}_relay_data:/data -v "$PWD/scripts":/scripts:ro \
+      --entrypoint node node:24-alpine /scripts/migrate-from-mariadb.mjs /data/relay.db
+```
+
+The migration script recomputes password hashes with scrypt from the plaintext
+`smtp_password` column, so existing SMTP clients keep working without new credentials.
+Deploy after seeding, then drop the old `${STACK}_db_data` volume once `/api/tenants`
+returns the expected rows.
+

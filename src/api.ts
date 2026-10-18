@@ -1,91 +1,80 @@
 import express from 'express';
-import bcrypt from 'bcrypt';
-import pool from './db';
-import crypto from 'crypto';
+import crypto from 'node:crypto';
+import { hashPassword } from './password';
+import {
+  createTenant,
+  listTenants,
+  pingDb,
+  queueStats,
+  updateTenant,
+} from './db';
 
 const router = express.Router();
 
-// Middleware to check for Admin API Key
-const authenticateAdmin = (req: express.Request, res: express.Response, next: express.NextFunction) => {
-  const apiKey = req.header('X-API-Key');
+const authenticateAdmin: express.RequestHandler = (req, res, next) => {
   const adminKey = process.env.ADMIN_API_KEY;
-
   if (!adminKey) {
     console.error('ADMIN_API_KEY is not set in environment variables');
-    return res.status(500).json({ error: 'Internal server configuration error' });
+    res.status(500).json({ error: 'Internal server configuration error' });
+    return;
   }
-
-  if (apiKey !== adminKey) {
-    return res.status(401).json({ error: 'Unauthorized' });
+  if (req.header('X-API-Key') !== adminKey) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
   }
   next();
 };
 
-router.get('/verify', authenticateAdmin, (req, res) => {
+router.get('/verify', authenticateAdmin, (_req, res) => {
   res.json({ success: true });
 });
 
-router.get('/health', async (req, res) => {
+router.get('/health', (_req, res) => {
   try {
-    await pool.query('SELECT 1');
+    pingDb();
     res.json({ status: 'healthy', database: 'connected' });
-  } catch (err) {
+  } catch {
     res.status(500).json({ status: 'unhealthy', error: 'Database connection failed' });
   }
 });
 
-router.get('/stats', authenticateAdmin, async (req, res) => {
+router.get('/stats', authenticateAdmin, (_req, res) => {
   try {
-    const [rows] = await pool.query<any[]>(`
-      SELECT 
-        status, 
-        COUNT(*) as count 
-      FROM mail_queue 
-      GROUP BY status
-    `);
-    
-    const [errors] = await pool.query<any[]>(`
-      SELECT error_message, created_at 
-      FROM mail_queue 
-      WHERE status = 'failed' 
-      ORDER BY created_at DESC 
-      LIMIT 5
-    `);
-
-    res.json({
-      counts: rows.reduce((acc, r) => ({ ...acc, [r.status]: r.count }), {}),
-      recent_errors: errors
-    });
+    res.json(queueStats());
   } catch (err) {
+    console.error('Stats error:', err);
     res.status(500).json({ error: 'Failed to fetch stats' });
   }
 });
 
-router.post('/tenants', authenticateAdmin, async (req, res) => {
-  const { name, tenant_tag, configuration_set, daily_limit } = req.body;
-
+router.post('/tenants', authenticateAdmin, (req, res) => {
+  const { name, tenant_tag, configuration_set, daily_limit } = req.body ?? {};
   if (!name || !tenant_tag) {
-    return res.status(400).json({ error: 'Name and tenant_tag are required' });
+    res.status(400).json({ error: 'Name and tenant_tag are required' });
+    return;
   }
 
   try {
     const smtp_username = `user_${crypto.randomBytes(4).toString('hex')}`;
     const smtp_password = crypto.randomBytes(12).toString('hex');
-    const smtp_password_hash = await bcrypt.hash(smtp_password, 10);
-
-    const [result] = await pool.query(
-      'INSERT INTO tenants (name, smtp_username, smtp_password, smtp_password_hash, tenant_tag, configuration_set, daily_limit) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [name, smtp_username, smtp_password, smtp_password_hash, tenant_tag, configuration_set || null, daily_limit || 1000]
-    );
+    const id = createTenant({
+      name,
+      smtp_username,
+      smtp_password,
+      smtp_password_hash: hashPassword(smtp_password),
+      tenant_tag,
+      configuration_set: configuration_set || null,
+      daily_limit: daily_limit || 1000,
+    });
 
     res.status(201).json({
-      id: (result as any).insertId,
+      id,
       name,
       smtp_username,
       smtp_password,
       tenant_tag,
-      configuration_set,
-      daily_limit: daily_limit || 1000
+      configuration_set: configuration_set || null,
+      daily_limit: daily_limit || 1000,
     });
   } catch (err) {
     console.error('Create tenant error:', err);
@@ -93,29 +82,30 @@ router.post('/tenants', authenticateAdmin, async (req, res) => {
   }
 });
 
-router.get('/tenants', authenticateAdmin, async (req, res) => {
+router.get('/tenants', authenticateAdmin, (_req, res) => {
   try {
-    const [rows] = await pool.query('SELECT id, name, smtp_username, smtp_password, tenant_tag, configuration_set, daily_limit, created_at FROM tenants');
-    res.json(rows);
+    res.json(listTenants());
   } catch (err) {
     console.error('List tenants error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-router.put('/tenants/:id', authenticateAdmin, async (req, res) => {
-  const { id } = req.params;
-  const { name, tenant_tag, configuration_set, daily_limit } = req.body;
-
-  if (!name || !tenant_tag) {
-    return res.status(400).json({ error: 'Name and tenant_tag are required' });
+router.put('/tenants/:id', authenticateAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  const { name, tenant_tag, configuration_set, daily_limit } = req.body ?? {};
+  if (!Number.isInteger(id) || !name || !tenant_tag) {
+    res.status(400).json({ error: 'Name and tenant_tag are required' });
+    return;
   }
 
   try {
-    await pool.query(
-      'UPDATE tenants SET name = ?, tenant_tag = ?, configuration_set = ?, daily_limit = ? WHERE id = ?',
-      [name, tenant_tag, configuration_set || null, daily_limit || 1000, id]
-    );
+    updateTenant(id, {
+      name,
+      tenant_tag,
+      configuration_set: configuration_set || null,
+      daily_limit: daily_limit || 1000,
+    });
     res.json({ success: true });
   } catch (err) {
     console.error('Update tenant error:', err);
