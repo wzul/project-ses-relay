@@ -1,42 +1,31 @@
 import express from 'express';
-import path from 'path';
+import path from 'node:path';
 import { createSmtpServer } from './smtp';
 import { initDb } from './db';
 import { startWorker } from './worker';
 import apiRouter from './api';
-import dotenv from 'dotenv';
-
-dotenv.config();
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
 
-// Serve static files from the public folder
 app.use(express.static(path.join(__dirname, '../public')));
-
-// Fallback to index.html for the root path
-app.get('/', (req, res) => {
+app.get('/', (_req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
 });
-
 app.use('/api', apiRouter);
 
-const smtpServer = createSmtpServer();
-
-async function start() {
+async function start(): Promise<void> {
   try {
-    await initDb();
-    console.log('Database initialized');
+    initDb();
+    console.log(`Database initialised at ${process.env.DB_PATH || '/data/relay.db'}`);
 
-    const apiPort = process.env.API_PORT || 3000;
-    app.listen(apiPort, () => {
-      console.log(`Management API listening on port ${apiPort}`);
-    });
+    const apiPort = Number(process.env.API_PORT || 3000);
+    app.listen(apiPort, () => console.log(`Management API listening on port ${apiPort}`));
 
-    const smtpPort = parseInt(process.env.SMTP_PORT || '587');
-    smtpServer.listen(smtpPort, () => {
-      console.log(`SMTP Relay listening on port ${smtpPort}`);
-    });
+    const smtpPort = Number(process.env.SMTP_PORT || 587);
+    createSmtpServer().listen(smtpPort, () =>
+      console.log(`SMTP Relay listening on port ${smtpPort}`)
+    );
 
     startWorker();
     console.log('Background worker started');
@@ -46,4 +35,11 @@ async function start() {
   }
 }
 
-start();
+function shutdown(signal: string): void {
+  console.log(`Received ${signal}, shutting down`);
+  process.exit(0);
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
+
+void start();
