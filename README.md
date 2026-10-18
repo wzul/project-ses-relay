@@ -39,6 +39,9 @@ This project is ideal for SaaS providers or agencies hosting multiple clients wh
 | `DB_PATH` | SQLite database file | `/data/relay.db` | No |
 | `QUEUE_POLL_MS` | Queue poll interval in ms | `10000` | No |
 | `QUEUE_BATCH_SIZE` | Emails claimed per poll cycle | `10` | No |
+| `SES_GUARD` | `reject` answers 550 at SMTP time when the From domain is not a verified SES identity, or the tenant's configuration set does not exist; `off` disables | `reject` | No |
+| `SES_GUARD_TTL_MS` | How long the verified-identity/config-set cache is trusted | `600000` | No |
+| `CERT_CHECK_MS` | How often the cert files are checked for renewal (a change restarts the process to load them) | `60000` | No |
 
 ## Deployment on Dokploy
 
@@ -89,6 +92,23 @@ All API requests (except `/api/health`) require the `X-API-Key` header.
 | `/api/stats` | GET | Get real-time queue statistics |
 | `/api/health` | GET | Service health check (Public) |
 | `/api/verify` | GET | Verify Admin API Key |
+
+## Troubleshooting: "Email address is not verified"
+
+SES is in production mode (any recipient is allowed), so this error always means the
+**From domain is not a verified identity in that region**. It used to appear only in
+`mail_queue.error_message` after the client already got a `250`; `SES_GUARD=reject`
+now refuses the message at DATA time with a permanent `550` naming the domain, so the
+sending application sees the real cause immediately.
+
+Two ways to resolve it:
+1. Verify the domain in SES (console → Verified identities → add the domain, add the
+   DKIM CNAMEs it gives you), or
+2. Change the application's `MAIL_FROM`/`From` to a domain already verified in that
+   region (`aws sesv2 list-email-identities`).
+
+The relay does not rewrite From addresses: a sender that lies about its From is a
+misconfigured sender, and silently rewriting it breaks reply handling.
 
 ## AWS SES Setup
 To ensure emails are delivered correctly:

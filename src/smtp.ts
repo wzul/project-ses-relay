@@ -2,24 +2,29 @@ import { SMTPServer } from 'smtp-server';
 import fs from 'node:fs';
 import { findTenantByUsername, countQueuedLast24h, enqueue, Tenant } from './db';
 import { verifyPassword } from './password';
+import { sesRejectReason } from './sesguard';
 
-export function createSmtpServer(): SMTPServer {
+export const FALLBACK_KEY = '/app/certs/server.key';
+export const FALLBACK_CERT = '/app/certs/server.crt';
+
+/** Resolve the key/cert pair the server will use (LE first, self-signed fallback). */
+export function resolveCertPaths(): { keyPath: string; certPath: string } {
   const domain = process.env.SMTP_DOMAIN;
-
   let keyPath = process.env.SMTP_KEY_PATH;
   let certPath = process.env.SMTP_CERT_PATH;
 
-  // If SMTP_DOMAIN is set, prioritise the Let's Encrypt paths.
   if (domain && !keyPath) {
     keyPath = `/etc/letsencrypt/live/${domain}/privkey.pem`;
     certPath = `/etc/letsencrypt/live/${domain}/fullchain.pem`;
   }
 
-  // Fallback to the self-signed pair baked into the image.
-  const fallbackKey = '/app/certs/server.key';
-  const fallbackCert = '/app/certs/server.crt';
-  keyPath = keyPath || fallbackKey;
-  certPath = certPath || fallbackCert;
+  return { keyPath: keyPath || FALLBACK_KEY, certPath: certPath || FALLBACK_CERT };
+}
+
+export function createSmtpServer(): SMTPServer {
+  let { keyPath, certPath } = resolveCertPaths();
+  const fallbackKey = FALLBACK_KEY;
+  const fallbackCert = FALLBACK_CERT;
 
   let key: Buffer | undefined;
   let cert: Buffer | undefined;
@@ -76,6 +81,18 @@ export function createSmtpServer(): SMTPServer {
       stream.on('end', () => {
         try {
           const rawEmail = Buffer.concat(chunks);
+
+          // Answer with a real 5xx here instead of queueing mail SES is guaranteed
+          // to reject later (unverified From domain, unknown configuration set).
+          const reject = sesRejectReason(rawEmail, tenant.configuration_set);
+          if (reject) {
+            console.warn(`Rejected message for tenant ${tenant.tenant_tag}: ${reject}`);
+            // 550 = permanent: retrying with the same From domain will never succeed.
+            const err = new Error(reject) as Error & { responseCode: number };
+            err.responseCode = 550;
+            return callback(err);
+          }
+
           const envelopeTo = session.envelope.rcptTo.map((r) => r.address).join(',');
           const envelopeFrom = session.envelope.mailFrom ? session.envelope.mailFrom.address : '';
 

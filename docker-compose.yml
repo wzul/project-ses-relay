@@ -14,6 +14,7 @@ services:
       - API_PORT=3000
       - SMTP_DOMAIN=${SMTP_DOMAIN:-smtp.yourdomain.com}
       - QUEUE_POLL_MS=${QUEUE_POLL_MS:-10000}
+      - SES_GUARD=${SES_GUARD:-reject}
     volumes:
       - relay_data:/data
       - cert_data:/etc/letsencrypt:ro
@@ -39,7 +40,7 @@ services:
       - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
     command: >
       -c "
-      echo 'dns_cloudflare_api_token = $${CLOUDFLARE_API_TOKEN}' > /etc/letsencrypt/cloudflare.ini &&
+      echo dns_cloudflare_api_token = $${CLOUDFLARE_API_TOKEN} > /etc/letsencrypt/cloudflare.ini &&
       chmod 600 /etc/letsencrypt/cloudflare.ini &&
       trap exit TERM; while :; do certbot renew --dns-cloudflare --dns-cloudflare-credentials /etc/letsencrypt/cloudflare.ini --quiet --deploy-hook 'chmod 755 /etc/letsencrypt/live /etc/letsencrypt/archive; chmod 640 /etc/letsencrypt/archive/*/privkey*.pem; chgrp -R 101 /etc/letsencrypt/live /etc/letsencrypt/archive'; sleep 12h & wait $${!}; done;
       "
