@@ -1,320 +1,554 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SES Relay Management</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="color-scheme" content="light" />
+<title>SES Relay · Control Panel</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%234f46e5'/%3E%3Cpath d='M8 12l8 6 8-6' stroke='white' stroke-width='2.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Crect x='8' y='10' width='16' height='12' rx='2' stroke='white' stroke-width='2.5' fill='none'/%3E%3C/svg%3E" />
+<style>
+  :root {
+    --bg: #f6f7fb;
+    --surface: #ffffff;
+    --border: #e6e8ef;
+    --border-strong: #d5d9e2;
+    --text: #12141a;
+    --muted: #6b7280;
+    --accent: #4f46e5;
+    --accent-soft: #eef2ff;
+    --ok: #059669;
+    --ok-soft: #ecfdf5;
+    --warn: #b45309;
+    --warn-soft: #fffbeb;
+    --err: #dc2626;
+    --err-soft: #fef2f2;
+    --radius: 14px;
+    --shadow: 0 1px 2px rgba(16, 24, 40, .04), 0 8px 24px -12px rgba(16, 24, 40, .12);
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--accent); }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 24px 64px; }
+
+  /* top bar */
+  .topbar {
+    position: sticky; top: 0; z-index: 20;
+    background: rgba(255,255,255,.85);
+    backdrop-filter: saturate(180%) blur(8px);
+    border-bottom: 1px solid var(--border);
+  }
+  .topbar-inner { max-width: 1180px; margin: 0 auto; padding: 14px 24px; display: flex; align-items: center; gap: 16px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 650; letter-spacing: -.01em; }
+  .brand svg { display: block; }
+  .version { font: 11px/1 var(--mono); color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 4px 8px; }
+  .spacer { flex: 1; }
+
+  .pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 550; border-radius: 999px; padding: 5px 11px; border: 1px solid transparent; }
+  .pill .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .pill-ok { color: var(--ok); background: var(--ok-soft); border-color: #cdeadd; }
+  .pill-bad { color: var(--err); background: var(--err-soft); border-color: #f6d5d5; }
+  .pill-idle { color: var(--muted); background: #f3f4f6; border-color: var(--border); }
+
+  /* header */
+  .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; padding: 40px 0 24px; flex-wrap: wrap; }
+  h1 { font-size: 30px; line-height: 1.15; letter-spacing: -.025em; margin: 0 0 6px; }
+  .sub { color: var(--muted); margin: 0; max-width: 62ch; }
+
+  /* buttons */
+  .btn {
+    appearance: none; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text);
+    font: inherit; font-weight: 550; font-size: 14px; padding: 9px 14px; border-radius: 10px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 8px; transition: .15s ease;
+  }
+  .btn:hover { border-color: #bfc5d2; }
+  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: 0 1px 2px rgba(79,70,229,.3); }
+  .btn-primary:hover { background: #4338ca; border-color: #4338ca; }
+  .btn-ghost { background: transparent; border-color: transparent; color: var(--muted); }
+  .btn-ghost:hover { color: var(--text); background: #f3f4f6; }
+  .btn-sm { padding: 6px 10px; font-size: 13px; border-radius: 8px; }
+
+  /* kpis */
+  .kpis { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 14px; margin-bottom: 22px; }
+  .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; box-shadow: var(--shadow); }
+  .kpi .label { display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .kpi .value { font-size: 30px; font-weight: 680; letter-spacing: -.03em; margin-top: 8px; font-variant-numeric: tabular-nums; }
+  .kpi .hint { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+  .kpi .swatch { width: 8px; height: 8px; border-radius: 3px; }
+  .kpi-pending .swatch { background: #6366f1; }
+  .kpi-processing .swatch { background: #f59e0b; }
+  .kpi-sent .swatch { background: var(--ok); }
+  .kpi-failed .swatch { background: var(--err); }
+
+  /* layout */
+  .cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 330px); gap: 18px; align-items: start; }
+  .cols > * { min-width: 0; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+  .card-head { display: flex; align-items: center; gap: 12px; padding: 16px 18px; border-bottom: 1px solid var(--border); }
+  .card-head h2 { font-size: 15.5px; margin: 0; letter-spacing: -.01em; }
+  .card-head .count { font: 12px/1 var(--mono); color: var(--muted); background: #f3f4f6; border-radius: 999px; padding: 4px 8px; }
+  .card-body { padding: 18px; }
+
+  /* table */
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 11.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; padding: 11px 14px; border-bottom: 1px solid var(--border); background: #fbfcfe; white-space: nowrap; }
+  td { padding: 12px 13px; border-bottom: 1px solid var(--border); vertical-align: middle; white-space: nowrap; font-size: 14px; }
+  th:first-child, td:first-child { min-width: 150px; }
+  th:last-child, td:last-child { width: 1%; }
+  tr:last-child td { border-bottom: 0; }
+  tbody tr:hover { background: #fbfcff; }
+  .name { font-weight: 600; white-space: nowrap; }
+  .tagline { font: 12.5px/1.4 var(--mono); color: var(--muted); }
+  code, .mono { font-family: var(--mono); font-size: 13px; }
+  .secret { display: inline-flex; align-items: center; gap: 6px; }
+  .secret .val { font-family: var(--mono); font-size: 12.5px; color: var(--muted); letter-spacing: .02em; }
+  .icon-btn { border: 1px solid var(--border); background: #fff; border-radius: 8px; padding: 4px 7px; cursor: pointer; color: var(--muted); font-size: 12px; line-height: 1; }
+  .icon-btn:hover { color: var(--text); border-color: var(--border-strong); }
+  .badge { display: inline-block; white-space: nowrap; font: 11.5px/1.7 var(--mono); border-radius: 6px; padding: 2px 7px; background: var(--accent-soft); color: var(--accent); }
+  td .badge { vertical-align: middle; }
+  .badge-muted { background: #f3f4f6; color: var(--muted); }
+
+  /* empty & failures */
+  .empty { text-align: center; color: var(--muted); padding: 34px 18px; }
+  .empty strong { display: block; color: var(--text); margin-bottom: 4px; }
+  .failure { padding: 12px 18px; border-bottom: 1px solid var(--border); font-size: 13.5px; }
+  .failure:last-child { border-bottom: 0; }
+  .failure .msg { color: #3f2c2c; background: var(--err-soft); border: 1px solid #f6dede; border-radius: 8px; padding: 8px 10px; margin-top: 4px; font-size: 12.5px; word-break: break-word; }
+  .failure time { color: var(--muted); font-size: 12px; }
+
+  /* dialogs */
+  dialog { border: 1px solid var(--border); border-radius: 16px; padding: 0; width: min(520px, calc(100vw - 32px)); box-shadow: 0 24px 64px -24px rgba(16,24,40,.35); }
+  dialog::backdrop { background: rgba(15, 18, 28, .45); backdrop-filter: blur(2px); }
+  .dlg-head { padding: 20px 22px 0; }
+  .dlg-head h2 { margin: 0 0 4px; font-size: 18px; letter-spacing: -.015em; }
+  .dlg-head p { margin: 0; color: var(--muted); font-size: 13.5px; }
+  .dlg-body { padding: 18px 22px; display: grid; gap: 14px; }
+  .dlg-foot { display: flex; justify-content: flex-end; gap: 10px; padding: 0 22px 20px; }
+  label.field { display: grid; gap: 6px; font-size: 13px; font-weight: 550; }
+  label.field span em { font-style: normal; color: var(--muted); font-weight: 400; }
+  .input {
+    font: inherit; font-size: 14px; padding: 10px 12px; border: 1px solid var(--border-strong); border-radius: 10px; background: #fff; width: 100%;
+  }
+  .input:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .note { font-size: 12.5px; color: var(--muted); }
+  .creds { background: #f8fafc; border: 1px dashed var(--border-strong); border-radius: 10px; padding: 12px; display: grid; gap: 8px; }
+  .creds .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .creds .k { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+
+  /* toasts */
+  #toasts { position: fixed; right: 20px; bottom: 20px; display: grid; gap: 10px; z-index: 60; }
+  .toast { background: #101828; color: #fff; border-radius: 10px; padding: 11px 14px; font-size: 13.5px; box-shadow: 0 12px 32px -12px rgba(0,0,0,.5); animation: in .16s ease; }
+  .toast.err { background: #b42318; }
+  .toast.ok { background: #05603a; }
+  @keyframes in { from { transform: translateY(6px); opacity: 0 } to { transform: none; opacity: 1 } }
+
+  @media (max-width: 900px) {
+    .kpis { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    .cols { grid-template-columns: 1fr; }
+    h1 { font-size: 25px; }
+    .hide-sm { display: none; }
+  }
+</style>
 </head>
-<body class="bg-gray-100 min-h-screen p-8">
-    <!-- Login Overlay -->
-    <div id="loginOverlay" class="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50 hidden">
-        <div class="bg-white p-8 rounded-lg shadow-xl max-w-md w-full">
-            <h2 class="text-2xl font-bold mb-6 text-gray-800">Admin Login</h2>
-            <p class="text-gray-600 mb-4">Please enter your Admin API Key to access the dashboard.</p>
-            <input type="password" id="loginApiKey" placeholder="Admin API Key" class="w-full p-3 border rounded mb-4 focus:ring-2 focus:ring-blue-500 outline-none">
-            <button onclick="login()" class="w-full bg-blue-600 text-white py-3 rounded font-semibold hover:bg-blue-700 transition">Login</button>
-            <p id="loginError" class="text-red-500 mt-4 text-sm hidden">Invalid API Key. Please try again.</p>
-        </div>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true">
+        <rect width="32" height="32" rx="8" fill="#4f46e5"></rect>
+        <rect x="8" y="10" width="16" height="12" rx="2" stroke="white" stroke-width="2.2" fill="none"></rect>
+        <path d="M8 12l8 6 8-6" stroke="white" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>
+      </svg>
+      SES Relay
+      <span class="version">v2.0</span>
     </div>
+    <div class="spacer"></div>
+    <span id="healthPill" class="pill pill-idle"><span class="dot"></span>Checking…</span>
+    <button id="logoutBtn" class="btn btn-ghost btn-sm" hidden>Sign out</button>
+  </div>
+</div>
 
-    <div id="dashboard" class="max-w-4xl mx-auto hidden">
-        <div class="flex justify-between items-center mb-8">
-            <h1 class="text-3xl font-bold text-gray-800">SES Relay Management</h1>
-            <button onclick="logout()" class="text-sm text-red-600 hover:underline">Logout</button>
-        </div>
-
-        <!-- Edit Tenant Modal -->
-        <div id="editModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50 hidden">
-            <div class="bg-white p-8 rounded-lg shadow-xl max-w-md w-full">
-                <h2 class="text-2xl font-bold mb-6 text-gray-800">Edit Tenant</h2>
-                <input type="hidden" id="editTenantId">
-                <div class="space-y-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Name</label>
-                        <input type="text" id="editTenantName" class="w-full p-2 border rounded mt-1">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Tenant Tag</label>
-                        <input type="text" id="editTenantTag" class="w-full p-2 border rounded mt-1">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Configuration Set</label>
-                        <input type="text" id="editConfigurationSet" class="w-full p-2 border rounded mt-1">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Daily Limit</label>
-                        <input type="number" id="editDailyLimit" class="w-full p-2 border rounded mt-1">
-                    </div>
-                </div>
-                <div class="flex justify-end gap-4 mt-8">
-                    <button onclick="closeEditModal()" class="px-4 py-2 text-gray-600 hover:underline">Cancel</button>
-                    <button onclick="updateTenant()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Save Changes</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Queue Stats Section -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-            <div class="bg-white p-4 rounded-lg shadow-md border-l-4 border-blue-500">
-                <p class="text-sm text-gray-500 uppercase font-bold">Pending</p>
-                <p id="statPending" class="text-2xl font-bold">0</p>
-            </div>
-            <div class="bg-white p-4 rounded-lg shadow-md border-l-4 border-yellow-500">
-                <p class="text-sm text-gray-500 uppercase font-bold">Processing</p>
-                <p id="statProcessing" class="text-2xl font-bold">0</p>
-            </div>
-            <div class="bg-white p-4 rounded-lg shadow-md border-l-4 border-green-500">
-                <p class="text-sm text-gray-500 uppercase font-bold">Sent</p>
-                <p id="statSent" class="text-2xl font-bold">0</p>
-            </div>
-            <div class="bg-white p-4 rounded-lg shadow-md border-l-4 border-red-500">
-                <p class="text-sm text-gray-500 uppercase font-bold">Failed</p>
-                <p id="statFailed" class="text-2xl font-bold">0</p>
-            </div>
-        </div>
-
-        <!-- Create Tenant Section -->
-        <div class="bg-white p-6 rounded-lg shadow-md mb-8">
-            <h2 class="text-xl font-semibold mb-4">Create New Tenant</h2>
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-                <input type="text" id="tenantName" placeholder="Tenant Name" class="p-2 border rounded">
-                <input type="text" id="tenantTag" placeholder="Tenant Tag" class="p-2 border rounded">
-                <input type="text" id="configurationSet" placeholder="AWS Config Set" class="p-2 border rounded">
-                <input type="number" id="dailyLimit" placeholder="Daily Limit (1000)" class="p-2 border rounded">
-            </div>
-            <button onclick="createTenant()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Create Tenant</button>
-            <div id="createResult" class="mt-4 hidden p-4 bg-gray-50 rounded border"></div>
-        </div>
-
-        <!-- Tenant List Section -->
-        <div class="bg-white p-6 rounded-lg shadow-md">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-xl font-semibold">Existing Tenants</h2>
-                <button onclick="loadTenants()" class="text-blue-600 hover:underline">Refresh List</button>
-            </div>
-            <div class="overflow-x-auto">
-                <table class="w-full text-left border-collapse">
-                    <thead>
-                        <tr class="border-b">
-                            <th class="py-2 px-4">Name</th>
-                            <th class="py-2 px-4">SMTP Username</th>
-                            <th class="py-2 px-4">SMTP Password</th>
-                            <th class="py-2 px-4">Tag</th>
-                            <th class="py-2 px-4">Config Set</th>
-                            <th class="py-2 px-4">Limit</th>
-                            <th class="py-2 px-4">Created</th>
-                            <th class="py-2 px-4">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tenantList">
-                        <!-- Tenants will be loaded here -->
-                    </tbody>
-                </table>
-            </div>
-        </div>
+<div class="wrap">
+  <header class="page-head">
+    <div>
+      <h1>Mail queue</h1>
+      <p class="sub">SMTP submission for every tenant, queued locally and delivered through Amazon SES with per-tenant tagging.</p>
     </div>
+    <div class="page-actions">
+      <button id="newTenantBtn" class="btn btn-primary" hidden>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg>
+        New tenant
+      </button>
+    </div>
+  </header>
 
-    <script>
-        const API_KEY_STORAGE_KEY = 'ses_relay_api_key';
+  <section class="kpis" aria-label="Queue summary">
+    <div class="kpi kpi-pending"><div class="label"><span class="swatch"></span>Pending</div><div class="value" id="statPending">—</div><div class="hint">waiting to be sent</div></div>
+    <div class="kpi kpi-processing"><div class="label"><span class="swatch"></span>Processing</div><div class="value" id="statProcessing">—</div><div class="hint">claimed by the worker</div></div>
+    <div class="kpi kpi-sent"><div class="label"><span class="swatch"></span>Sent</div><div class="value" id="statSent">—</div><div class="hint">accepted by SES · last 7 days</div></div>
+    <div class="kpi kpi-failed"><div class="label"><span class="swatch"></span>Failed</div><div class="value" id="statFailed">—</div><div class="hint">retried with backoff</div></div>
+  </section>
 
-        async function checkAuth() {
-            const apiKey = localStorage.getItem(API_KEY_STORAGE_KEY);
-            if (!apiKey) {
-                showLogin();
-                return;
-            }
+  <div class="cols">
+    <section class="card">
+      <div class="card-head">
+        <h2>Tenants</h2>
+        <span class="count" id="tenantCount">0</span>
+        <div class="spacer"></div>
+        <button id="refreshBtn" class="btn btn-sm">Refresh</button>
+      </div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr>
+              <th>Tenant</th>
+              <th>SMTP username</th>
+              <th class="hide-sm">Password</th>
+              <th class="hide-sm">Config set</th>
+              <th class="hide-sm">Limit</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="tenantList">
+            <tr><td colspan="6" class="empty">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
 
-            try {
-                const response = await fetch('/api/verify', {
-                    headers: { 'X-API-Key': apiKey }
-                });
-                if (response.ok) {
-                    showDashboard();
-                    loadTenants();
-                    loadStats();
-                    setInterval(loadStats, 10000); // Refresh stats every 10s
-                } else {
-                    showLogin();
-                }
-            } catch (err) {
-                console.error('Auth check failed:', err);
-                showLogin();
-            }
-        }
+    <aside class="card">
+      <div class="card-head"><h2>Recent failures</h2></div>
+      <div id="failures" class="empty">No failures recorded.</div>
+    </aside>
+  </div>
+</div>
 
-        function showLogin() {
-            document.getElementById('loginOverlay').classList.remove('hidden');
-            document.getElementById('dashboard').classList.add('hidden');
-        }
+<!-- login -->
+<dialog id="loginDialog">
+  <form method="dialog" id="loginForm">
+    <div class="dlg-head">
+      <h2>Admin sign in</h2>
+      <p>Paste the <code>ADMIN_API_KEY</code> configured for this relay. It stays in your browser only.</p>
+    </div>
+    <div class="dlg-body">
+      <label class="field">Admin API key
+        <input class="input" type="password" id="loginApiKey" autocomplete="current-password" placeholder="••••••••••••" required />
+      </label>
+      <p class="note">The key is sent as the <code>X-API-Key</code> header to <code>/api/*</code>.</p>
+      <div id="loginError" class="note" style="color:var(--err)" hidden>That key was rejected.</div>
+    </div>
+    <div class="dlg-foot">
+      <button class="btn btn-primary" type="submit">Unlock dashboard</button>
+    </div>
+  </form>
+</dialog>
 
-        function showDashboard() {
-            document.getElementById('loginOverlay').classList.add('hidden');
-            document.getElementById('dashboard').classList.remove('hidden');
-        }
+<!-- create / edit -->
+<dialog id="tenantDialog">
+  <form method="dialog" id="tenantForm">
+    <div class="dlg-head">
+      <h2 id="tenantDialogTitle">New tenant</h2>
+      <p id="tenantDialogSub">Every tenant gets its own SMTP credentials and a tag that is stamped on delivered mail.</p>
+    </div>
+    <div class="dlg-body">
+      <input type="hidden" id="tenantId" />
+      <div class="grid2">
+        <label class="field">Name <input class="input" id="tenantName" required placeholder="Acme Sdn Bhd" /></label>
+        <label class="field">Tenant tag <span><em>X-Tenant-ID / SES TenantName</em></span> <input class="input" id="tenantTag" required placeholder="acme" /></label>
+      </div>
+      <div class="grid2">
+        <label class="field">Configuration set <em>(optional)</em> <input class="input" id="tenantConfigSet" placeholder="acme-default-set" /></label>
+        <label class="field">Daily limit <input class="input" id="tenantLimit" type="number" min="1" value="1000" /></label>
+      </div>
+      <div id="createdCreds" class="creds" hidden>
+        <div class="row"><span class="k">SMTP username</span><code id="createdUser"></code></div>
+        <div class="row"><span class="k">SMTP password</span><code id="createdPass"></code></div>
+        <p class="note">Shown once — copy it into the application's mail configuration now.</p>
+      </div>
+    </div>
+    <div class="dlg-foot">
+      <button class="btn" type="button" id="tenantCancel">Cancel</button>
+      <button class="btn btn-primary" type="submit" id="tenantSave">Save tenant</button>
+    </div>
+  </form>
+</dialog>
 
-        async function login() {
-            const key = document.getElementById('loginApiKey').value;
-            if (!key) return;
+<div id="toasts" aria-live="polite"></div>
 
-            try {
-                const response = await fetch('/api/verify', {
-                    headers: { 'X-API-Key': key }
-                });
-                if (response.ok) {
-                    localStorage.setItem(API_KEY_STORAGE_KEY, key);
-                    showDashboard();
-                    loadTenants();
-                    loadStats();
-                    setInterval(loadStats, 10000);
-                } else {
-                    document.getElementById('loginError').classList.remove('hidden');
-                }
-            } catch (err) {
-                alert('Connection error. Please check if the server is running.');
-            }
-        }
+<script>
+(() => {
+  'use strict';
+  const KEY_STORE = 'ses_relay_api_key';
+  const $ = (id) => document.getElementById(id);
+  const state = { key: localStorage.getItem(KEY_STORE) || '', tenants: [], editing: false };
 
-        function logout() {
-            localStorage.removeItem(API_KEY_STORAGE_KEY);
-            showLogin();
-        }
+  const toast = (msg, kind) => {
+    const el = document.createElement('div');
+    el.className = 'toast' + (kind ? ' ' + kind : '');
+    el.textContent = msg;
+    $('toasts').appendChild(el);
+    setTimeout(() => el.remove(), 4200);
+  };
 
-        async function createTenant() {
-            const name = document.getElementById('tenantName').value;
-            const tenant_tag = document.getElementById('tenantTag').value;
-            const configuration_set = document.getElementById('configurationSet').value;
-            const daily_limit = document.getElementById('dailyLimit').value;
-            const apiKey = localStorage.getItem(API_KEY_STORAGE_KEY);
+  async function api(path, options = {}) {
+    const res = await fetch(path, {
+      ...options,
+      headers: { 'X-API-Key': state.key, 'Content-Type': 'application/json', ...(options.headers || {}) }
+    });
+    if (res.status === 401) { signOut(true); throw new Error('Unauthorized'); }
+    const text = await res.text();
+    const data = text ? JSON.parse(text) : null;
+    if (!res.ok) throw new Error((data && data.error) || res.status + ' ' + res.statusText);
+    return data;
+  }
 
-            if (!name || !tenant_tag) return alert('Please fill all fields');
-            if (!apiKey) return showLogin();
+  async function checkHealth() {
+    const pill = $('healthPill');
+    try {
+      const res = await fetch('/api/health');
+      const data = await res.json();
+      const ok = res.ok && data.status === 'healthy';
+      pill.className = 'pill ' + (ok ? 'pill-ok' : 'pill-bad');
+      pill.innerHTML = '<span class="dot"></span>' + (ok ? 'Relay healthy' : 'Database unreachable');
+    } catch {
+      pill.className = 'pill pill-bad';
+      pill.innerHTML = '<span class="dot"></span>Relay unreachable';
+    }
+  }
 
-            try {
-                const response = await fetch('/api/tenants', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-API-Key': apiKey
-                    },
-                    body: JSON.stringify({ name, tenant_tag, configuration_set, daily_limit })
-                });
+  function signOut(rejected) {
+    localStorage.removeItem(KEY_STORE);
+    state.key = '';
+    $('logoutBtn').hidden = true;
+    $('newTenantBtn').hidden = true;
+    $('tenantList').innerHTML = '';
+    $('loginError').hidden = !rejected;
+    $('loginDialog').showModal();
+  }
 
-                const data = await response.json();
-                if (!response.ok) throw new Error(data.error || 'Failed to create tenant');
+  async function signIn(key) {
+    state.key = key;
+    await api('/api/verify');
+    localStorage.setItem(KEY_STORE, key);
+    $('loginDialog').close();
+    $('logoutBtn').hidden = false;
+    $('newTenantBtn').hidden = false;
+    await Promise.all([loadTenants(), loadStats()]);
+  }
 
-                const resultDiv = document.getElementById('createResult');
-                resultDiv.innerHTML = `
-                    <p class="font-bold text-green-600">Tenant Created Successfully!</p>
-                    <p><strong>SMTP Username:</strong> ${data.smtp_username}</p>
-                    <p><strong>SMTP Password:</strong> ${data.smtp_password}</p>
-                `;
-                resultDiv.classList.remove('hidden');
-                loadTenants();
-            } catch (err) {
-                alert(err.message);
-            }
-        }
+  async function loadStats() {
+    try {
+      const data = await api('/api/stats');
+      const c = data.counts || {};
+      $('statPending').textContent = c.pending || 0;
+      $('statProcessing').textContent = c.processing || 0;
+      $('statSent').textContent = c.sent || 0;
+      $('statFailed').textContent = c.failed || 0;
+      renderFailures(data.recent_errors || []);
+    } catch (err) {
+      if (err.message !== 'Unauthorized') toast('Could not load queue stats', 'err');
+    }
+  }
 
-        async function loadTenants() {
-            const apiKey = localStorage.getItem(API_KEY_STORAGE_KEY);
-            if (!apiKey) return;
+  function renderFailures(list) {
+    const box = $('failures');
+    box.className = '';
+    box.textContent = '';
+    if (!list.length) {
+      box.className = 'empty';
+      box.textContent = 'No failures recorded.';
+      return;
+    }
+    list.forEach((f) => {
+      const wrap = document.createElement('div');
+      wrap.className = 'failure';
+      const when = document.createElement('time');
+      when.textContent = f.created_at ? new Date(f.created_at.replace(' ', 'T') + 'Z').toLocaleString() : '';
+      const msg = document.createElement('div');
+      msg.className = 'msg';
+      msg.textContent = f.error_message || 'unknown error';
+      wrap.append(when, msg);
+      box.appendChild(wrap);
+    });
+  }
 
-            try {
-                const response = await fetch('/api/tenants', {
-                    headers: { 'X-API-Key': apiKey }
-                });
-                const data = await response.json();
-                if (!response.ok) throw new Error(data.error || 'Failed to load tenants');
+  function copy(text, label) {
+    navigator.clipboard.writeText(text).then(
+      () => toast(label + ' copied', 'ok'),
+      () => toast('Clipboard blocked by the browser', 'err')
+    );
+  }
 
-                const tbody = document.getElementById('tenantList');
-                tbody.innerHTML = data.map(t => `
-                    <tr class="border-b hover:bg-gray-50">
-                        <td class="py-2 px-4">${t.name}</td>
-                        <td class="py-2 px-4 font-mono text-sm">${t.smtp_username}</td>
-                        <td class="py-2 px-4 font-mono text-sm">${t.smtp_password}</td>
-                        <td class="py-2 px-4">${t.tenant_tag}</td>
-                        <td class="py-2 px-4 text-sm text-gray-500">${t.configuration_set || '-'}</td>
-                        <td class="py-2 px-4 text-sm text-gray-500">${t.daily_limit}</td>
-                        <td class="py-2 px-4 text-sm text-gray-500">${new Date(t.created_at).toLocaleDateString()}</td>
-                        <td class="py-2 px-4">
-                            <button onclick='openEditModal(${JSON.stringify(t)})' class="text-blue-600 hover:underline">Edit</button>
-                        </td>
-                    </tr>
-                `).join('');
-            } catch (err) {
-                console.error(err);
-            }
-        }
+  function renderTenants() {
+    const tbody = $('tenantList');
+    tbody.textContent = '';
+    $('tenantCount').textContent = state.tenants.length;
 
-        function openEditModal(tenant) {
-            document.getElementById('editTenantId').value = tenant.id;
-            document.getElementById('editTenantName').value = tenant.name;
-            document.getElementById('editTenantTag').value = tenant.tenant_tag;
-            document.getElementById('editConfigurationSet').value = tenant.configuration_set || '';
-            document.getElementById('editDailyLimit').value = tenant.daily_limit;
-            document.getElementById('editModal').classList.remove('hidden');
-        }
+    if (!state.tenants.length) {
+      const tr = document.createElement('tr');
+      const td = document.createElement('td');
+      td.colSpan = 6; td.className = 'empty';
+      td.innerHTML = '<strong>No tenants yet</strong>Create one to hand a client SMTP credentials.';
+      tr.appendChild(td); tbody.appendChild(tr);
+      return;
+    }
 
-        function closeEditModal() {
-            document.getElementById('editModal').classList.add('hidden');
-        }
+    state.tenants.forEach((t) => {
+      const tr = document.createElement('tr');
 
-        async function updateTenant() {
-            const id = document.getElementById('editTenantId').value;
-            const name = document.getElementById('editTenantName').value;
-            const tenant_tag = document.getElementById('editTenantTag').value;
-            const configuration_set = document.getElementById('editConfigurationSet').value;
-            const daily_limit = document.getElementById('editDailyLimit').value;
-            const apiKey = localStorage.getItem(API_KEY_STORAGE_KEY);
+      const name = document.createElement('td');
+      const nameStrong = document.createElement('div');
+      nameStrong.className = 'name'; nameStrong.textContent = t.name;
+      const nameTag = document.createElement('div');
+      nameTag.className = 'tagline'; nameTag.textContent = t.tenant_tag;
+      name.append(nameStrong, nameTag);
 
-            if (!name || !tenant_tag) return alert('Please fill all fields');
-            if (!apiKey) return showLogin();
+      const user = document.createElement('td');
+      const userCode = document.createElement('code');
+      userCode.textContent = t.smtp_username;
+      const userCopy = document.createElement('button');
+      userCopy.className = 'icon-btn'; userCopy.type = 'button'; userCopy.textContent = 'copy';
+      userCopy.style.marginLeft = '8px';
+      userCopy.style.verticalAlign = 'middle';
+      userCopy.addEventListener('click', () => copy(t.smtp_username, 'Username'));
+      user.append(userCode, userCopy);
 
-            try {
-                const response = await fetch(`/api/tenants/${id}`, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-API-Key': apiKey
-                    },
-                    body: JSON.stringify({ name, tenant_tag, configuration_set, daily_limit })
-                });
+      const pass = document.createElement('td');
+      pass.className = 'hide-sm';
+      const secret = document.createElement('span');
+      secret.className = 'secret';
+      const val = document.createElement('span');
+      val.className = 'val'; val.textContent = '••••••••';
+      const reveal = document.createElement('button');
+      reveal.className = 'icon-btn'; reveal.type = 'button'; reveal.textContent = 'show';
+      let shown = false;
+      reveal.addEventListener('click', () => {
+        shown = !shown;
+        val.textContent = shown ? t.smtp_password : '••••••••';
+        reveal.textContent = shown ? 'hide' : 'show';
+      });
+      const passCopy = document.createElement('button');
+      passCopy.className = 'icon-btn'; passCopy.type = 'button'; passCopy.textContent = 'copy';
+      passCopy.hidden = true;
+      passCopy.addEventListener('click', () => copy(t.smtp_password, 'Password'));
+      reveal.addEventListener('click', () => { passCopy.hidden = !shown; });
+      secret.append(val, reveal, passCopy);
+      pass.appendChild(secret);
 
-                if (!response.ok) {
-                    const data = await response.json();
-                    throw new Error(data.error || 'Failed to update tenant');
-                }
+      const cfg = document.createElement('td');
+      cfg.className = 'hide-sm';
+      const badge = document.createElement('span');
+      badge.className = 'badge' + (t.configuration_set ? '' : ' badge-muted');
+      badge.textContent = t.configuration_set || 'none';
+      cfg.appendChild(badge);
 
-                closeEditModal();
-                loadTenants();
-            } catch (err) {
-                alert(err.message);
-            }
-        }
+      const limit = document.createElement('td');
+      limit.className = 'mono hide-sm';
+      limit.textContent = Number(t.daily_limit).toLocaleString();
 
-        async function loadStats() {
-            const apiKey = localStorage.getItem(API_KEY_STORAGE_KEY);
-            if (!apiKey) return;
+      const actions = document.createElement('td');
+      actions.style.textAlign = 'right';
+      const edit = document.createElement('button');
+      edit.className = 'btn btn-sm'; edit.type = 'button'; edit.textContent = 'Edit';
+      edit.addEventListener('click', () => openTenantDialog(t));
+      actions.appendChild(edit);
 
-            try {
-                const response = await fetch('/api/stats', {
-                    headers: { 'X-API-Key': apiKey }
-                });
-                const data = await response.json();
-                if (!response.ok) return;
+      tr.append(name, user, pass, cfg, limit, actions);
+      tbody.appendChild(tr);
+    });
+  }
 
-                document.getElementById('statPending').innerText = data.counts.pending || 0;
-                document.getElementById('statProcessing').innerText = data.counts.processing || 0;
-                document.getElementById('statSent').innerText = data.counts.sent || 0;
-                document.getElementById('statFailed').innerText = data.counts.failed || 0;
-            } catch (err) {
-                console.error('Failed to load stats');
-            }
-        }
+  async function loadTenants() {
+    try {
+      state.tenants = await api('/api/tenants');
+      renderTenants();
+    } catch (err) {
+      if (err.message !== 'Unauthorized') toast('Could not load tenants', 'err');
+    }
+  }
 
-        // Initial load
-        checkAuth();
-    </script>
+  function openTenantDialog(tenant) {
+    state.editing = Boolean(tenant);
+    $('tenantDialogTitle').textContent = tenant ? 'Edit tenant' : 'New tenant';
+    $('tenantDialogSub').textContent = tenant
+      ? 'Changes apply immediately; credentials stay the same.'
+      : 'Every tenant gets its own SMTP credentials and a tag stamped on delivered mail.';
+    $('tenantId').value = tenant ? tenant.id : '';
+    $('tenantName').value = tenant ? tenant.name : '';
+    $('tenantTag').value = tenant ? tenant.tenant_tag : '';
+    $('tenantConfigSet').value = tenant && tenant.configuration_set ? tenant.configuration_set : '';
+    $('tenantLimit').value = tenant ? tenant.daily_limit : 1000;
+    $('createdCreds').hidden = true;
+    $('tenantDialog').showModal();
+  }
+
+  async function saveTenant(event) {
+    event.preventDefault();
+    // Second submit after a create = just dismiss the credential panel.
+    if ($('tenantId').value === '' && !$('createdCreds').hidden) {
+      $('tenantDialog').close();
+      return;
+    }
+    const payload = {
+      name: $('tenantName').value.trim(),
+      tenant_tag: $('tenantTag').value.trim(),
+      configuration_set: $('tenantConfigSet').value.trim() || null,
+      daily_limit: Number($('tenantLimit').value) || 1000
+    };
+    const id = $('tenantId').value;
+    try {
+      if (id) {
+        await api('/api/tenants/' + id, { method: 'PUT', body: JSON.stringify(payload) });
+        toast('Tenant updated', 'ok');
+        $('tenantDialog').close();
+      } else {
+        const created = await api('/api/tenants', { method: 'POST', body: JSON.stringify(payload) });
+        $('createdUser').textContent = created.smtp_username;
+        $('createdPass').textContent = created.smtp_password;
+        $('createdCreds').hidden = false;
+        $('tenantSave').textContent = 'Done';
+        toast('Tenant created', 'ok');
+      }
+      await Promise.all([loadTenants(), loadStats()]);
+    } catch (err) {
+      toast(err.message, 'err');
+    }
+  }
+
+  // events
+  $('loginForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const key = $('loginApiKey').value.trim();
+    if (!key) return;
+    signIn(key).catch(() => { $('loginError').hidden = false; });
+  });
+  $('logoutBtn').addEventListener('click', () => signOut(false));
+  $('newTenantBtn').addEventListener('click', () => openTenantDialog(null));
+  $('refreshBtn').addEventListener('click', () => { loadTenants(); loadStats(); checkHealth(); });
+  $('tenantCancel').addEventListener('click', () => $('tenantDialog').close());
+  $('tenantForm').addEventListener('submit', saveTenant);
+  $('tenantDialog').addEventListener('close', () => {
+    $('tenantSave').textContent = 'Save tenant';
+  });
+
+  // boot
+  checkHealth();
+  setInterval(checkHealth, 30000);
+  if (state.key) {
+    signIn(state.key).catch(() => signOut(true));
+  } else {
+    signOut(false);
+  }
+})();
+</script>
 </body>
 </html>

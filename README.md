@@ -1,233 +1,257 @@
+<div align="center">
+
 # SES Relay
 
-SMTP Relay with AWS SES Tenant Tagging & Queuing.
+**A small, self-hosted, multi-tenant SMTP relay for Amazon SES.**
+One SMTP endpoint for every client. Per-tenant credentials, tagging, rate limits and a queue — in a single container with no database server.
+
+[![License: MIT](https://img.shields.io/badge/license-MIT-4f46e5.svg)](LICENSE)
+[![Node](https://img.shields.io/badge/node-%E2%89%A522.5-3c873a.svg)](package.json)
+[![Docker](https://img.shields.io/badge/docker-compose-2496ed.svg)](docker-compose.yml)
+
+<img src="docs/screenshots/dashboard.png" alt="SES Relay control panel — mail queue, tenants and recent failures" width="880">
+
+</div>
+
+---
+
+## Why this exists
+
+Giving clients SMTP credentials usually means either handing out your master SES
+keys, or standing up one mail service per client. This relay sits in the middle:
+each client authenticates with its own username/password on port 587, mail is
+queued locally, and the worker delivers it through SES with the client's
+`TenantName` and an `X-Tenant-ID` header. The AWS credentials never leave the
+server.
+
+It is deliberately small: ~500 lines of TypeScript, three runtime dependencies,
+one SQLite file, and a memory footprint around 25 MiB.
 
 ## Features
-- **SMTP Relay**: Authenticates users against a local SQLite database (single file, no DB server).
-- **Queuing**: Emails are stored in a `mail_queue` table before being sent to AWS SES.
-- **Tenant Routing**: Automatically routes emails through AWS SES `TenantName` context.
-- **Management UI**: Secure dashboard to manage tenants, limits, and configuration sets.
-- **Reliability**: Atomic locking, exponential backoff retries, and automatic queue cleanup.
-- **Security**: Forced STARTTLS on port 587, API key protection, and rate limiting.
-- **Dockerized**: Fully containerized with `docker-compose`.
 
-## Use Case: Multi-Tenant Hosting
+| | |
+|---|---|
+| **Multi-tenant SMTP** | STARTTLS on 587, PLAIN/LOGIN auth against per-tenant credentials |
+| **Per-tenant tagging** | SES `TenantName` plus an `X-Tenant-ID` header on every message |
+| **Durable queue** | Messages are committed to SQLite before the client gets its `250` |
+| **Backoff retries** | 3 attempts with growing delay; failures recorded with the real SES error |
+| **Daily limits** | Per-tenant cap, enforced at submission time |
+| **Pre-flight guard** | Answers `550` when the From domain is not a verified SES identity, or the configuration set does not exist — instead of queueing mail that is certain to fail |
+| **Control panel** | Zero-dependency web UI for queue health, tenants and recent failures |
+| **Certificate handling** | certbot sidecar with Cloudflare DNS-01, self-reload when the certificate changes |
+| **Tiny footprint** | One app container + one certbot sidecar, no RDBMS, non-root, memory-capped |
 
-This project is ideal for SaaS providers or agencies hosting multiple clients who need to send emails via AWS SES.
+## Architecture
 
-- **Isolation**: Each client gets their own SMTP username and password.
-- **Automatic Tagging**: When a client sends an email, the relay automatically maps their credentials to their specific **Tenant ID** (via `TenantName` and `X-Tenant-ID` header).
-- **Zero Configuration for Clients**: Clients don't need to know about AWS, IAM keys, or Tenant IDs. They just use standard SMTP credentials.
-- **Credential Security**: Your master AWS IAM keys and main SMTP settings are never exposed to your clients.
-- **Control**: You can pause sending or set daily limits for specific clients without affecting others.
+```mermaid
+flowchart LR
+    subgraph clients[Clients]
+        app1[WordPress / Laravel / any SMTP client]
+    end
 
-## Prerequisites
-- **AWS Account**: IAM user with `AmazonSESFullAccess` (or specific `ses:SendRawEmail` permissions).
-- **Cloudflare Account**: For automatic Let's Encrypt DNS challenge.
-- **Dokploy**: Or any Docker-compatible hosting environment.
+    subgraph stack[Docker stack]
+        direction TB
+        smtp["SMTP :587<br/>STARTTLS · auth · rate limit"]
+        q[("mail_queue<br/>SQLite")]
+        worker[Queue worker]
+        api["Admin API :3000"]
+        ui[Control panel]
+        certbot[certbot sidecar]
+    end
 
-## Configuration
+    ses[AWS SES v2]
+    cf[Cloudflare DNS]
 
-| Variable | Description | Default | Required |
-|----------|-------------|---------|----------|
-| `AWS_ACCESS_KEY_ID` | Standard IAM Access Key (NOT SMTP) | - | Yes |
-| `AWS_SECRET_ACCESS_KEY` | Standard IAM Secret Key (NOT SMTP) | - | Yes |
-| `AWS_REGION` | AWS Region (e.g., `ap-southeast-1`) | `ap-southeast-1` | Yes |
-| `ADMIN_API_KEY` | Key to protect the Management UI/API | - | Yes |
-| `CLOUDFLARE_API_TOKEN` | Cloudflare Token (Zone:DNS:Edit) | - | Yes |
-| `SMTP_DOMAIN` | Your relay domain (e.g., `relay.example.com`) | - | Yes |
-| `DB_PATH` | SQLite database file | `/data/relay.db` | No |
-| `QUEUE_POLL_MS` | Queue poll interval in ms | `10000` | No |
-| `QUEUE_BATCH_SIZE` | Emails claimed per poll cycle | `10` | No |
-| `SES_GUARD` | `reject` answers 550 at SMTP time when the From domain is not a verified SES identity, or the tenant's configuration set does not exist; `off` disables | `reject` | No |
-| `SES_GUARD_TTL_MS` | How long the verified-identity/config-set cache is trusted | `600000` | No |
-| `CERT_CHECK_MS` | How often the cert files are checked for renewal (a change restarts the process to load them) | `60000` | No |
+    app1 -- "SMTP AUTH + STARTTLS" --> smtp
+    smtp -- "INSERT … 'pending'" --> q
+    worker -- "claim batch" --> q
+    worker -- "SendEmail (raw, TenantName)" --> ses
+    ui --> api
+    api -- "tenants · stats" --> q
+    certbot -- "DNS-01" --> cf
+    certbot -- "cert volume" --> smtp
+```
 
-## Deployment on Dokploy
+**Queue lifecycle:** `pending → processing → sent`, or `failed` with `retries`
+incremented and `next_retry_at` set. A batch is claimed inside a single
+`BEGIN IMMEDIATE` transaction, so a second worker instance can never send the
+same message twice. Sent rows are deleted after 7 days, exhausted failures after 30.
 
-1.  **Create a new Project** in Dokploy.
-2.  **Add a Compose Service** and point it to this repository.
-3.  **Configure Environment Variables** in the Dokploy UI (see table above).
-4.  **Expose Ports**:
-    - Dokploy handles port `3000` (Web UI) automatically via Traefik.
-    - **Manually expose port `587`** in Dokploy settings for SMTP traffic.
-5.  **Deploy**: The application creates the SQLite schema on first start. The database lives on the `relay_data` volume — back that volume up, that file is the whole state.
+## Quick start
 
-## Usage
+```bash
+git clone https://github.com/wzul/project-ses-relay.git
+cd project-ses-relay
+cp .env.example .env      # fill in AWS keys, ADMIN_API_KEY, SMTP_DOMAIN
+docker compose up -d --build
+```
 
-### Web Interface
-Access the dashboard at `http://your-domain.com` (or the Dokploy URL).
-1.  **Login**: Enter your `ADMIN_API_KEY`.
-2.  **Stats**: Monitor the queue status (Pending, Processing, Sent, Failed) in real-time.
-3.  **Tenants**: Create tenants with specific **AWS Configuration Sets** and **Daily Limits**.
+Open `http://localhost:3000`, paste your `ADMIN_API_KEY`, create a tenant, and
+point any SMTP client at `your-domain:587`.
 
-### SMTP Relay
-Connect your SMTP client to `your-domain.com:587`.
-- **Security**: STARTTLS is **mandatory**. Plaintext connections are rejected.
-- **Authentication**: Use the `smtp_username` and `smtp_password` generated in the UI.
-- **Visibility**: Every email sent through the relay will include an `X-Tenant-ID` header containing the tenant's tag for easy identification in the message source.
+<details>
+<summary>Client configuration (msmtp, Laravel, WordPress)</summary>
 
-#### Client Configuration (msmtp)
+**msmtp**
+
 ```conf
-host relay.example.com
+host mailerrelay.example.com
 port 587
 tls on
 tls_starttls on
 tls_certcheck on
 auth on
-user your_smtp_username
-password your_smtp_password
-```
-*Note: `auth on` is secure here because the connection is encrypted via STARTTLS before authentication occurs.*
-
-## API Reference
-
-All API requests (except `/api/health`) require the `X-API-Key` header.
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/tenants` | GET | List all tenants |
-| `/api/tenants` | POST | Create a new tenant |
-| `/api/tenants/:id` | PUT | Update an existing tenant |
-| `/api/stats` | GET | Get real-time queue statistics |
-| `/api/health` | GET | Service health check (Public) |
-| `/api/verify` | GET | Verify Admin API Key |
-
-## Troubleshooting: "Email address is not verified"
-
-SES is in production mode (any recipient is allowed), so this error always means the
-**From domain is not a verified identity in that region**. It used to appear only in
-`mail_queue.error_message` after the client already got a `250`; `SES_GUARD=reject`
-now refuses the message at DATA time with a permanent `550` naming the domain, so the
-sending application sees the real cause immediately.
-
-Two ways to resolve it:
-1. Verify the domain in SES (console → Verified identities → add the domain, add the
-   DKIM CNAMEs it gives you), or
-2. Change the application's `MAIL_FROM`/`From` to a domain already verified in that
-   region (`aws sesv2 list-email-identities`).
-
-The relay does not rewrite From addresses: a sender that lies about its From is a
-misconfigured sender, and silently rewriting it breaks reply handling.
-
-## AWS SES Setup
-To ensure emails are delivered correctly:
-1.  **Verify Domain**: Your `SMTP_DOMAIN` (or the domain used in `From` addresses) must be verified in the AWS SES Console.
-2.  **Configuration Sets**: If you assign a Configuration Set to a tenant, ensure it exists in the **same AWS Region** as your relay.
-3.  **Permissions**: The IAM user must have `ses:SendRawEmail` and `ses:GetSendQuota` permissions.
-
-## Let's Encrypt Integration (Cloudflare DNS)
-
-The project uses a Certbot sidecar with the Cloudflare DNS challenge. This allows SSL generation even if your server is behind a firewall or Cloudflare Proxy.
-
-### 1. Initial Setup (One-time)
-Run this command from your server's compose directory:
-```bash
-cd /etc/dokploy/compose/<your-service-id>/code
-docker compose run --rm certbot -c "
-  echo 'dns_cloudflare_api_token = \$CLOUDFLARE_API_TOKEN' > /etc/letsencrypt/cloudflare.ini && 
-  chmod 600 /etc/letsencrypt/cloudflare.ini && 
-  certbot certonly --dns-cloudflare --dns-cloudflare-credentials /etc/letsencrypt/cloudflare.ini --dns-cloudflare-propagation-seconds 60 --email your-email@example.com --agree-tos --no-eff-email -d relay.example.com
-"
+user user_xxxxxxxx
+password your_generated_password
 ```
 
-### 2. Automatic Renewal
-The `certbot` container checks for renewals every 12 hours. The `app` container will pick up new certificates upon restart.
+**Laravel / Symfony Mailer**
 
-## Operations & Maintenance
-
-### Monitoring Logs
-```bash
-docker compose logs -f app     # Application & Worker logs
-docker compose logs -f certbot # SSL renewal logs
-docker compose exec app ls -l /data   # SQLite file + WAL
+```dotenv
+MAIL_MAILER=smtp
+MAIL_HOST=mailerrelay.example.com
+MAIL_PORT=587
+MAIL_USERNAME=user_xxxxxxxx
+MAIL_PASSWORD=your_generated_password
+MAIL_ENCRYPTION=tls
+MAIL_FROM_ADDRESS=noreply@your-verified-domain.com
 ```
+</details>
 
-### Queue Management
-- **Retries**: Failed emails are retried 3 times with exponential backoff.
-- **Cleanup**: Sent emails are deleted after 7 days; failures that exhausted retries after 30 days.
-- **Backup**: `docker run --rm -v <stack>_relay_data:/d -v $PWD:/b alpine tar czf /b/relay-db.tgz -C /d .` — stop the app first (or use `sqlite3 relay.db '.backup'`).
+> `MAIL_FROM_ADDRESS` matters: the relay does **not** rewrite `From`. It must be on
+> a domain verified in SES (see [Troubleshooting](#troubleshooting)).
 
-## How it Works (Simplified)
+## Screenshots
 
-```mermaid
-graph LR
-    WP[WordPress] -- "SMTP (Port 587)" --> Relay[SES Relay]
-    Relay -- "AWS API (v2)" --> SES[AWS SES]
-```
+<div align="center">
 
-## Architecture
+<img src="docs/screenshots/new-tenant.png" alt="Creating a tenant — credentials are shown once" width="430">
+<img src="docs/screenshots/dashboard-mobile.png" alt="Control panel on a phone" width="200">
 
-```mermaid
-graph TD
-    subgraph "External"
-        Client[SMTP Clients]
-        Admin[Admin Browser]
-        CF[Cloudflare DNS]
-        AWS[AWS SES v2]
-    end
+</div>
 
-    subgraph "Docker Stack (Dokploy)"
-        subgraph "App Container"
-            SMTP[SMTP Server :587]
-            API[Management API :3000]
-            Worker[Background Worker]
-            UI[Web Dashboard]
-        end
+## Configuration
 
-        DB[(SQLite file)]
-        Cert[Certbot Sidecar]
-    end
-
-    Client -- "STARTTLS (Port 587)" --> SMTP
-    Admin -- "HTTPS (Port 443)" --> UI
-    UI -- "REST API" --> API
-    
-    SMTP -- "Queue Email" --> DB
-    API -- "Manage Tenants" --> DB
-    
-    Worker -- "Poll Queue" --> DB
-    Worker -- "SendRawEmail (TenantName)" --> AWS
-    
-    Cert -- "DNS Challenge" --> CF
-    Cert -- "Shared Volume (SSL)" --> App
-```
-
-- **Node.js (TypeScript)**: Core logic and SMTP server.
-
-## Resource footprint
-
-The stack is two containers (app + certbot sidecar) and no database server:
-
-| | v1 (MariaDB) | v2 (SQLite) |
+| Variable | Description | Default |
 |---|---|---|
-| Containers | 3 | 2 |
-| RAM (idle, measured) | ~51 MiB | ~27 MiB |
-| Images | ~836 MB | ~378 MB |
-| Data on disk | 162 MB volume | ~100 KB file |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | IAM user with `ses:SendEmail`, `ses:SendRawEmail`, `ses:ListEmailIdentities`, `ses:ListConfigurationSets` | — |
+| `AWS_REGION` | Region of your SES identities | `ap-southeast-1` |
+| `ADMIN_API_KEY` | Protects `/api/*` and the control panel | — |
+| `SMTP_DOMAIN` | Hostname whose Let's Encrypt certificate is used for STARTTLS | — |
+| `CLOUDFLARE_API_TOKEN` | DNS-01 token for the certbot sidecar (`Zone:DNS:Edit`) | — |
+| `SMTP_PORT` / `API_PORT` | Listen ports | `587` / `3000` |
+| `DB_PATH` | SQLite file | `/data/relay.db` |
+| `QUEUE_POLL_MS` | Queue poll interval | `10000` |
+| `QUEUE_BATCH_SIZE` | Messages claimed per poll | `10` |
+| `SES_GUARD` | `reject` = 550 on unverified From domain / unknown configuration set, `off` = never pre-check | `reject` |
+| `SES_GUARD_TTL_MS` | How long the verified-identity cache is trusted | `600000` |
+| `CERT_CHECK_MS` | Certificate mtime poll (a change restarts the process) | `60000` |
+| `MARIADB_*`, `DB_HOST`, `DB_USER` … | **Removed in v2** — ignored if still present | — |
 
-Runtime dependencies: `express`, `smtp-server`, `@aws-sdk/client-sesv2`. Password
-hashing uses `node:crypto` scrypt and storage uses the built-in `node:sqlite`, so
-there is no native module to compile.
+The database is a single file on the `relay_data` volume: back that up and you have
+backed up the relay.
 
-## Migrating an existing MariaDB deployment (v1 -> v2)
+## API
 
-Tenants are the only state worth carrying over; queued mail does not survive a relay
-restart anyway. Seed the SQLite volume **before** the container starts:
+All routes except `/api/health` require `X-API-Key: $ADMIN_API_KEY`.
+
+| Method | Route | Description |
+|---|---|---|
+| `GET` | `/api/health` | Liveness + database check (public, used by the container healthcheck) |
+| `GET` | `/api/verify` | Validate the admin key |
+| `GET` | `/api/stats` | Queue counts per status + last 5 failures |
+| `GET` | `/api/tenants` | List tenants |
+| `POST` | `/api/tenants` | Create a tenant (returns the SMTP password **once**) |
+| `PUT` | `/api/tenants/:id` | Update name, tag, configuration set, daily limit |
 
 ```bash
-STACK=aws-and-tools-aws-ses-relay-yplxvu   # compose appName
-docker volume create ${STACK}_relay_data
+curl -s -H "X-API-Key: $ADMIN_API_KEY" https://relay.example.com/api/stats
+# {"counts":{"sent":1284,"failed":3},"recent_errors":[...]}
+```
 
-# export tenants from the running MariaDB
+## Operations
+
+**Logs**
+
+```bash
+docker compose logs -f app      # SMTP, worker, guard decisions
+docker compose logs -f certbot  # renewals
+```
+
+**Backup / restore** (stop the app first, or use `sqlite3 .backup`)
+
+```bash
+docker run --rm -v <stack>_relay_data:/d -v "$PWD":/b alpine tar czf /b/relay-db.tgz -C /d .
+```
+
+**Certificates.** The sidecar renews with a Cloudflare DNS-01 challenge every 12
+hours and relaxes the key to group `101` so the non-root app can read it. The app
+watches the certificate files and restarts itself when they change, so a renewal is
+served without a manual restart.
+
+**Health.** `GET /api/health` is wired into the container healthcheck; `/api/stats`
+drives the KPI cards.
+
+## Troubleshooting
+
+**`Email address is not verified. The following identities failed the check in region …`**
+
+The account is in production mode, so this always means the **From domain is not a
+verified SES identity**. Verify the domain (SES → Verified identities → add domain →
+add the DKIM CNAMEs), or send from a domain that is already verified
+(`aws sesv2 list-email-identities`). With `SES_GUARD=reject` the client now sees a
+`550` at submission time instead of a silent queue failure.
+
+**`Configuration set "…" does not exist in AWS SES`**
+
+The tenant references a configuration set that is not in that region. Either create
+it or clear the field on the tenant.
+
+**STARTTLS fails / certificate errors**
+
+```bash
+openssl s_client -connect relay.example.com:587 -starttls smtp -servername relay.example.com \
+  -CAfile /etc/ssl/certs/ca-certificates.crt </dev/null | grep 'Verify return code'
+```
+
+If certbot logs `CF 6003 Invalid request headers`, the Cloudflare token is wrong —
+note that a token wrapped in single quotes inside `docker-compose.yml` is written to
+`cloudflare.ini` as the *placeholder*, not the value.
+
+**Message accepted but never delivered**
+
+Check `/api/stats` → `recent_errors`; every SES rejection is stored verbatim with the
+message id.
+
+## Security notes
+
+- The app runs as an unprivileged user with `no-new-privileges`, a 128 MiB memory cap
+  and a 0.5 CPU limit.
+- The relay never rewrites `From`; a sender lying about its identity is a
+  misconfiguration, and silently rewriting it breaks reply handling.
+- `GET /api/tenants` returns `smtp_password` in clear text (needed by the UI to show
+  credentials). Treat the admin key as a credential that can read every tenant's SMTP
+  password.
+- No secrets are committed: `.env` is git-ignored and only `.env.example` is tracked.
+
+## Migrating from v1 (MariaDB)
+
+v1 kept tenants and the queue in MariaDB. v2 stores both in SQLite. Tenants are the
+only state worth carrying over.
+
+```bash
+STACK=<compose appName>
+docker volume create ${STACK}_relay_data
 docker exec ${STACK}-db-1 sh -c 'mariadb -u"$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" -N -B \
   -e "select id,name,smtp_username,smtp_password,tenant_tag,ifnull(configuration_set,\"\"),daily_limit from tenants"' \
   | docker run --rm -i -v ${STACK}_relay_data:/data -v "$PWD/scripts":/scripts:ro \
       --entrypoint node node:24-alpine /scripts/migrate-from-mariadb.mjs /data/relay.db
 ```
 
-The migration script recomputes password hashes with scrypt from the plaintext
-`smtp_password` column, so existing SMTP clients keep working without new credentials.
-Deploy after seeding, then drop the old `${STACK}_db_data` volume once `/api/tenants`
-returns the expected rows.
+Seed the volume **before** deploying (with `autoDeploy`, merging to the deployed
+branch is the release). The script recomputes password hashes with scrypt from the
+plaintext `smtp_password` column, so existing SMTP clients keep their credentials.
 
+## License
+
+[MIT](LICENSE) © Wan Zulkarnain
