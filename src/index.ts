@@ -61,7 +61,7 @@ async function start(): Promise<void> {
     watchCertificates(certStamp());
 
     await refreshSesGuard(true);
-    setInterval(() => void refreshSesGuard(), 600_000).unref();
+    setInterval(() => void refreshSesGuard(), 120_000).unref();
   } catch (err) {
     console.error('Failed to start application:', err);
     process.exit(1);

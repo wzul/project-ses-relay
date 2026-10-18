@@ -11,7 +11,7 @@ import { SESv2Client, ListEmailIdentitiesCommand, ListConfigurationSetsCommand }
  * Fails OPEN: if the SES API cannot be reached, mail is queued as before.
  */
 
-const TTL_MS = Number(process.env.SES_GUARD_TTL_MS || 600_000);
+const TTL_MS = Number(process.env.SES_GUARD_TTL_MS || 120_000);
 
 export interface SesGuardState {
   domains: Set<string>;

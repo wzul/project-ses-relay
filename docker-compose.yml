@@ -15,6 +15,7 @@ services:
       - SMTP_DOMAIN=${SMTP_DOMAIN:-smtp.yourdomain.com}
       - QUEUE_POLL_MS=${QUEUE_POLL_MS:-10000}
       - SES_GUARD=${SES_GUARD:-reject}
+      - SES_GUARD_TTL_MS=${SES_GUARD_TTL_MS:-120000}
     volumes:
       - relay_data:/data
       - cert_data:/etc/letsencrypt:ro

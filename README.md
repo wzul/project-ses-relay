@@ -144,7 +144,7 @@ MAIL_FROM_ADDRESS=noreply@your-verified-domain.com
 | `QUEUE_POLL_MS` | Queue poll interval | `10000` |
 | `QUEUE_BATCH_SIZE` | Messages claimed per poll | `10` |
 | `SES_GUARD` | `reject` = 550 on unverified From domain / unknown configuration set, `off` = never pre-check | `reject` |
-| `SES_GUARD_TTL_MS` | How long the verified-identity cache is trusted | `600000` |
+| `SES_GUARD_TTL_MS` | How long the verified-identity cache is trusted (newly verified domains start working within this window) | `120000` |
 | `CERT_CHECK_MS` | Certificate mtime poll (a change restarts the process) | `60000` |
 | `MARIADB_*`, `DB_HOST`, `DB_USER` … | **Removed in v2** — ignored if still present | — |
 
